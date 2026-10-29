@@ -407,7 +407,10 @@ function libFor(b, ok = () => true) {
 function techOf(b) { return b.tech.length ? b.tech : (libFor(b, e => e.tech.length)?.tech || []); }
 function spineOf(b) { return b.spine || libFor(b, e => e.spine)?.spine || ''; }
 function sayLines(b) { return techOf(b).filter(l => l.includes('**')); }
+// Övergångar och uppställningar förhörs inte, de visas i stället
+// som en del av bytet till nästa riktiga övning.
 function facetsOf(b) {
+  if (NOT_EXERCISE.test(b.move)) return [];
   const f = ['move'];
   if (repsNum(b)) f.push('reps');
   if (sayLines(b).length) f.push('say');
@@ -459,6 +462,7 @@ function srsStatus(s) {
 }
 function blockStatus(b) {
   const st = facetsOf(b).map(f => srsStatus(b.srs[f]));
+  if (!st.length) return 'none';
   return st.includes('bad') ? 'bad' : st.includes('mid') ? 'mid' : 'good';
 }
 const STATUS_LABEL = { good: 'Sitter', mid: 'Nästan', bad: 'Behöver övas' };
@@ -487,6 +491,7 @@ function grade(r, s, g) {
 }
 
 function statusBar(blocks) {
+  blocks = blocks.filter(b => blockStatus(b) !== 'none');
   if (!blocks.length) return '<div class="bar"></div>';
   const c = { good: 0, mid: 0, bad: 0 };
   blocks.forEach(b => c[blockStatus(b)]++);
@@ -597,7 +602,7 @@ function blockHtml(b, opts = {}) {
       ${opts.hideMeta || !b.cue ? '' : `<span class="cue" style="display:block">♪ ${esc(b.cue)}</span>`}
       ${opts.showNote ? detailHtml(b) : ''}
     </span>
-    ${opts.dot === false ? '' : `<i class="dot s-${st}" title="${STATUS_LABEL[st]}"></i>`}
+    ${opts.dot === false || st === 'none' ? '' : `<i class="dot s-${st}" title="${STATUS_LABEL[st]}"></i>`}
   </button>`;
 }
 
@@ -747,14 +752,19 @@ function vQuiz() {
   const item = Q.queue[Q.idx];
   const r = rel(item.rid), t = trk(item.rid, item.tid), b = t && t.blocks.find(x => x.id === item.bid);
   if (!b || !facetsOf(b).includes(item.f)) { Q.idx++; return vQuiz(); }
-  const i = t.blocks.indexOf(b), prev = t.blocks[i - 1];
+  // Förra riktiga övningen, och övergångarna som ligger emellan.
+  const i = t.blocks.indexOf(b), via = [];
+  let j = i - 1;
+  while (j >= 0 && NOT_EXERCISE.test(t.blocks[j].move)) via.unshift(t.blocks[j--]);
+  const prev = t.blocks[j];
   const tname = t.num ? t.num + ' ' + t.name : t.name;
   let ask, answer;
   if (item.f === 'move') {
     ask = prev
       ? `<div class="quiz-time">${fmtTime(prev.time)}</div><div class="quiz-ctx">${moveHtml(prev)}</div><div class="quiz-q" style="margin-top:10px">Vad byter du till efter det här?</div>`
       : `<div class="quiz-q">Vad är första övningen?</div>`;
-    answer = `<div class="move">${moveHtml(b)}</div><div class="meta">Byte vid ${fmtTime(b.time)}${metaStr(b) ? ' · ' + esc(metaStr(b)) : ''}</div>${stepsHtml(b)}`;
+    answer = via.map(v => `<div class="meta">${fmtTime(v.time)} · ${esc(v.move)}</div>`).join('') +
+      `<div class="move" style="margin-top:${via.length ? 8 : 0}px">${moveHtml(b)}</div><div class="meta">Byte vid ${fmtTime(b.time)}${metaStr(b) ? ' · ' + esc(metaStr(b)) : ''}</div>${stepsHtml(b)}`;
   } else if (item.f === 'reps') {
     ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Hur många reps?</div>`;
     const why = repsWhy(b);
