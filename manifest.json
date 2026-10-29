@@ -1,1 +1,11 @@
-{"name":"Passa dig","short_name":"Passa dig","start_url":"./","display":"standalone","background_color":"#f5f1ec","theme_color":"#f5f1ec","icons":[{"src":"icon.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}
+{
+  "name": "Passa dig",
+  "short_name": "Passa dig",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f1ec",
+  "theme_color": "#f5f1ec",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

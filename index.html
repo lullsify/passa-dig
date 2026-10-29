@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Passa dig</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Passa dig">
+  <meta name="theme-color" content="#f5f1ec">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* === TOKENS === */
+    :root {
+      --bg: #f5f1ec;
+      --surface: #ffffff;
+      --surface-2: #efe9e2;
+      --text: #2b2724;
+      --muted: #7a716a;
+      --line: #e3dcd4;
+      --accent: #4f6f6a;
+      --accent-soft: #e2ebe8;
+      --good: #4f8a5f;
+      --mid: #c8962f;
+      --bad: #bf5a4f;
+      --radius: 14px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* === RESET & BASE === */
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html { background: var(--bg); color-scheme: light; }
+    body {
+      font-family: 'Jost', -apple-system, system-ui, sans-serif;
+      font-weight: 400;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      min-height: 100vh;
+      overscroll-behavior-y: none;
+      -webkit-text-size-adjust: 100%;
+    }
+    button, input, textarea, select { font: inherit; color: inherit; }
+    button { cursor: pointer; border: none; background: none; touch-action: manipulation; }
+    input, textarea, select { font-size: 16px; } /* hindrar iOS från att zooma in */
+
+    /* === HEADER === */
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--bg);
+      padding: calc(var(--safe-top) + 10px) 16px 10px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid transparent;
+    }
+    header.scrolled { border-bottom-color: var(--line); }
+    header h1 { font-size: 22px; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .back { font-size: 16px; color: var(--accent); padding: 6px 8px 6px 0; font-weight: 500; }
+    .hbtn { color: var(--accent); font-weight: 500; padding: 6px 0 6px 8px; }
+
+    main { padding: 8px 16px calc(var(--safe-bottom) + 40px); max-width: 600px; margin: 0 auto; }
+
+    /* === KORT & LISTOR === */
+    .card { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+    .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 4px 8px; font-weight: 500; }
+    .row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; width: 100%; text-align: left; }
+    .row .grow { flex: 1; min-width: 0; }
+    .row .title { font-weight: 500; }
+    .row .sub { font-size: 14px; color: var(--muted); }
+    .chev { color: var(--muted); font-size: 20px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 14px; }
+    p + p { margin-top: 8px; }
+
+    /* === KNAPPAR === */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 18px; border-radius: 12px; background: var(--surface-2); font-weight: 500; font-size: 16px; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .btn.danger { background: transparent; color: var(--bad); }
+    .btn.block { width: 100%; }
+    .btn:disabled { opacity: .4; }
+    .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-row .btn { flex: 1; padding-left: 10px; padding-right: 10px; white-space: nowrap; font-size: 15px; }
+    .linkbtn { color: var(--accent); font-weight: 500; padding: 8px 4px; }
+
+    /* === STATUS === */
+    .bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--surface-2); margin-top: 8px; }
+    .bar span { display: block; height: 100%; }
+    .s-good { background: var(--good); }
+    .s-mid { background: var(--mid); }
+    .s-bad { background: var(--bad); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+    /* === IDAG === */
+    .today { display: flex; align-items: center; gap: 14px; }
+    .today-num { font-size: 40px; font-weight: 300; line-height: 1; color: var(--accent); min-width: 44px; text-align: center; }
+    .today .grow { flex: 1; }
+
+    /* === LÄGEN === */
+    .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+    .mode { background: var(--surface); border-radius: var(--radius); padding: 14px; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; }
+    .mode b { display: block; font-weight: 500; margin-bottom: 2px; }
+    .mode span { font-size: 13px; color: var(--muted); line-height: 1.3; display: block; }
+    .mode:disabled { opacity: .45; }
+
+    /* === BLOCK === */
+    .blk { display: flex; gap: 12px; padding: 12px 14px; background: var(--surface); border-radius: 12px; margin-bottom: 6px; width: 100%; text-align: left; align-items: flex-start; }
+    .blk .time { font-variant-numeric: tabular-nums; font-weight: 500; color: var(--accent); min-width: 42px; }
+    .blk .grow { flex: 1; min-width: 0; }
+    .blk .move { font-weight: 500; overflow-wrap: anywhere; }
+    .blk .meta { font-size: 14px; color: var(--muted); }
+    .blk .cue { font-size: 14px; color: var(--accent); }
+    .blk .note { font-size: 14px; color: var(--muted); white-space: pre-wrap; margin-top: 2px; }
+    .blk .dot { margin-top: 7px; }
+    .blk.masked .move { color: var(--muted); font-weight: 400; letter-spacing: .02em; }
+    .blk.current { outline: 2px solid var(--accent); }
+    .letter { display: inline-block; min-width: 22px; font-weight: 600; color: var(--accent); }
+    .steps, .tech { display: block; margin-top: 6px; font-size: 14px; }
+    .steps > span { display: flex; justify-content: space-between; gap: 10px; }
+    .steps .c { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .tech > span { display: block; padding-left: 12px; position: relative; margin-bottom: 3px; color: var(--muted); }
+    .tech > span::before { content: '•'; position: absolute; left: 0; }
+    .tech b { font-weight: 600; color: var(--text); }
+    .breath { color: var(--accent); font-weight: 600; }
+    .sublabel { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 10px; }
+    .spine { display: inline-block; font-size: 13px; background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 2px 8px; margin-top: 6px; }
+
+    /* === SPÅRLISTA MED MITT PASS === */
+    .trow { display: flex; align-items: center; gap: 4px; background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; }
+    .trow .row { margin: 0; background: none; flex: 1; min-width: 0; }
+    .switch { padding: 14px 16px 14px 4px; display: flex; }
+    .switch input { width: 24px; height: 24px; accent-color: var(--accent); }
+    .pick { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+    .pick input { width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; }
+
+    /* === SEGMENT === */
+    .seg { display: flex; background: var(--surface-2); border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+    .seg button { flex: 1; padding: 8px 4px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--muted); }
+    .seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+    /* === FÖRHÖR === */
+    .quiz-card { background: var(--surface); border-radius: 18px; padding: 24px 20px; text-align: center; min-height: 260px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+    .quiz-track { font-size: 14px; color: var(--muted); }
+    .quiz-time { font-size: 44px; font-weight: 300; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .quiz-prev { font-size: 15px; color: var(--muted); }
+    .quiz-q { font-size: 17px; font-weight: 500; margin-bottom: 4px; }
+    .quiz-ctx { font-size: 21px; font-weight: 500; line-height: 1.25; }
+    .quiz-answer { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+    .quiz-answer .why { color: var(--accent); font-size: 15px; margin-top: 4px; }
+    .quiz-answer .steps, .quiz-answer .tech { text-align: left; }
+    .quiz-answer .move { font-size: 22px; font-weight: 500; }
+    .quiz-answer .meta { color: var(--muted); }
+    .quiz-answer .cue { color: var(--accent); }
+    .quiz-answer .note { color: var(--muted); font-size: 15px; white-space: pre-wrap; margin-top: 6px; }
+    .progress { font-size: 14px; color: var(--muted); text-align: center; margin: 4px 0 12px; }
+    .grades { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .grades .btn { padding: 14px 6px; font-size: 15px; color: #fff; }
+    .g0 { background: var(--bad) !important; }
+    .g1 { background: var(--mid) !important; }
+    .g2 { background: var(--good) !important; }
+
+    /* === MENTAL GENOMGÅNG === */
+    .reh-clock { text-align: center; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .reh-clock b { font-size: 34px; font-weight: 300; color: var(--text); display: block; }
+    .reh-bar { height: 4px; background: var(--surface-2); border-radius: 2px; margin: 10px 0 16px; overflow: hidden; }
+    .reh-bar span { display: block; height: 100%; background: var(--accent); width: 0; }
+    .reh-now { background: var(--surface); border-radius: 18px; padding: 22px 18px; text-align: center; min-height: 170px; display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 100%; }
+    .reh-label { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .reh-move { font-size: 26px; font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
+    .reh-meta { color: var(--muted); }
+    .reh-cue { color: var(--accent); }
+    .reh-next { background: var(--accent-soft); border-radius: 14px; padding: 14px 16px; margin-top: 10px; }
+    .reh-next .reh-move { font-size: 18px; }
+    .controls { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8px; margin-top: 16px; }
+    .toggle { display: flex; align-items: center; gap: 10px; padding: 14px 4px 0; font-size: 15px; }
+    .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+    /* === TOMT LÄGE === */
+    .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+    .empty p { margin-bottom: 18px; }
+
+    /* === BOTTENARK (formulär) === */
+    .sheet { position: fixed; inset: 0; z-index: 50; }
+    .sheet[hidden] { display: none; }
+    .backdrop { position: absolute; inset: 0; background: rgba(30,25,20,.35); }
+    .panel {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: var(--bg); border-radius: 18px 18px 0 0;
+      padding: 18px 16px calc(var(--safe-bottom) + 18px);
+      max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      max-width: 600px; margin: 0 auto;
+    }
+    .panel h2 { font-size: 20px; font-weight: 500; margin-bottom: 14px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+    .field input, .field textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); -webkit-appearance: none; appearance: none; }
+    .field textarea { min-height: 80px; resize: vertical; }
+    .field input[type=date] { min-height: 46px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .help { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+    .example { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: var(--surface); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; margin-bottom: 12px; color: var(--muted); }
+    #f-paste { min-height: 220px; font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+
+    /* === TOAST === */
+    .toast { position: fixed; left: 16px; right: 16px; bottom: calc(var(--safe-bottom) + 20px); z-index: 60; background: var(--text); color: #fff; padding: 12px 16px; border-radius: 12px; text-align: center; font-size: 15px; opacity: 0; transform: translateY(10px); transition: .2s; pointer-events: none; max-width: 560px; margin: 0 auto; }
+    .toast.show { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+  <header id="top"></header>
+  <main id="app"></main>
+  <div id="sheet" class="sheet" hidden></div>
+  <div id="toast" class="toast"></div>
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+  <input type="file" id="audioFile" accept="audio/*" hidden>
+  <input type="file" id="pdfFile" accept="application/pdf,.pdf,application/json,.json" hidden>
+
+<script>
+'use strict';
+
+/* ============================================================
+   GRUNDER
+   ============================================================ */
+const KEY = 'passminne';
+const VERSION = 2;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+function todayStr(d = new Date()) {
+  const z = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+}
+function addDays(str, n) {
+  const [y, m, d] = str.split('-').map(Number);
+  return todayStr(new Date(y, m - 1, d + n));
+}
+function diffDays(a, b) {
+  const p = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((p(b) - p(a)) / 864e5);
+}
+function fmtDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+}
+function parseTime(s) {
+  s = String(s || '').trim();
+  const m = s.match(/^(\d{1,3})[:.](\d{1,2})$/);
+  if (m) return +m[1] * 60 + +m[2];
+  if (/^\d+$/.test(s)) return +s;
+  return null;
+}
+function fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ============================================================
+   DATA
+   Struktur: releases > tracks > blocks. Varje block har egen
+   repetitionsdata per fråga (srs.move, srs.reps, srs.say,
+   srs.spine). migrate() körs vid start och import så att gamla
+   backuper alltid går att läsa in.
+   Version 1 hade en gemensam srs per block, den flyttas till
+   srs.move. Spår från version 1 räknas som en del av Mitt pass.
+   ============================================================ */
+const FACETS = ['move', 'reps', 'say', 'spine'];
+const SPINE = { neutral: 'Neutral ryggrad', imprint: 'Imprint, ländryggen mot golvet', flexion: 'Rundad rygg (flexion)' };
+
+function emptyData() { return { version: VERSION, releases: [], library: {} }; }
+const nameKey = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+
+// Övningsbanken: hur varje övning görs, nycklad på övningsnamnet.
+// Den ligger kvar när nya releaser kommer och fylls på av varje
+// release (tech, spine) och av handboken (setup, exec).
+function migrateLibrary(lib) {
+  const out = {}, arr = a => (Array.isArray(a) ? a : []).map(String).filter(Boolean);
+  if (lib && typeof lib === 'object') Object.entries(lib).forEach(([k, e]) => {
+    if (!e || typeof e !== 'object' || !nameKey(k)) return;
+    out[nameKey(k)] = { name: String(e.name || k), setup: arr(e.setup), exec: arr(e.exec), tech: arr(e.tech), spine: SPINE[e.spine] ? e.spine : '' };
+  });
+  return out;
+}
+function newSrs() { return { n: 0, interval: 0, ease: 2.5, due: null, lastGrade: null }; }
+function newFacets() { return { move: newSrs(), reps: newSrs(), say: newSrs(), spine: newSrs() }; }
+function newBlock() { return { id: uid(), time: 0, letter: '', move: '', phrase: '', counts: '', reps: '', steps: [], tech: [], spine: '', cue: '', note: '', srs: newFacets() }; }
+function newTrack(name) { return { id: uid(), num: '', name, song: '', intro: '', inPass: true, done: false, audioName: '', blocks: [] }; }
+function sortBlocks(t) { t.blocks.sort((a, b) => a.time - b.time); }
+
+function migrateSrs(old) {
+  const fs = newFacets();
+  if (!old || typeof old !== 'object') return fs;
+  if ('n' in old || 'due' in old) Object.assign(fs.move, old);
+  else FACETS.forEach(f => { if (old[f] && typeof old[f] === 'object') Object.assign(fs[f], old[f]); });
+  return fs;
+}
+
+function migrate(d) {
+  if (!d || typeof d !== 'object') return emptyData();
+  if (d.app === 'passminne' && d.data) d = d.data;
+  const out = { version: VERSION, releases: [], library: migrateLibrary(d.library) };
+  (Array.isArray(d.releases) ? d.releases : []).forEach(r => {
+    const R = { id: r.id || uid(), name: String(r.name || 'Release'), launchDate: /^\d{4}-\d{2}-\d{2}$/.test(r.launchDate) ? r.launchDate : '', tracks: [] };
+    (Array.isArray(r.tracks) ? r.tracks : []).forEach(t => {
+      const T = {
+        id: t.id || uid(),
+        num: String(t.num || ''),
+        name: String(t.name || 'Spår'),
+        song: String(t.song || ''),
+        intro: String(t.intro || ''),
+        inPass: t.inPass !== false,
+        done: !!t.done,
+        audioName: String(t.audioName || ''),
+        blocks: []
+      };
+      (Array.isArray(t.blocks) ? t.blocks : []).forEach(b => {
+        T.blocks.push({
+          id: b.id || uid(),
+          time: Number.isFinite(+b.time) ? +b.time : 0,
+          letter: String(b.letter || ''),
+          move: String(b.move || ''),
+          phrase: String(b.phrase || ''),
+          counts: String(b.counts ?? ''),
+          reps: String(b.reps ?? ''),
+          steps: (Array.isArray(b.steps) ? b.steps : []).filter(s => s && s.text).map(s => ({ text: String(s.text), cts: String(s.cts ?? '') })),
+          tech: (Array.isArray(b.tech) ? b.tech : []).map(String).filter(Boolean),
+          spine: SPINE[b.spine] ? b.spine : '',
+          cue: String(b.cue || ''),
+          note: String(b.note || ''),
+          srs: migrateSrs(b.srs)
+        });
+      });
+      sortBlocks(T);
+      R.tracks.push(T);
+    });
+    out.releases.push(R);
+  });
+  return out;
+}
+
+function load() {
+  try { const raw = localStorage.getItem(KEY); return raw ? migrate(JSON.parse(raw)) : emptyData(); }
+  catch (e) { return emptyData(); }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S.data)); }
+  catch (e) { toast('Kunde inte spara. Exportera en backup för säkerhets skull.'); }
+}
+
+const S = { data: load(), view: { name: 'home' }, minutes: 15 };
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
+const rel = rid => S.data.releases.find(r => r.id === rid);
+const trk = (rid, tid) => rel(rid)?.tracks.find(t => t.id === tid);
+function passBlocks() {
+  const out = [];
+  S.data.releases.forEach(r => r.tracks.forEach(t => { if (t.inPass && !t.done) t.blocks.forEach(b => out.push({ r, t, b })); }));
+  return out;
+}
+
+/* ============================================================
+   BLOCKETS DELAR
+   Varje block förhörs i upp till fyra delar: vad du byter till,
+   antal reps, det du måste säga (fetstil i noterna) och ryggläge.
+   Reps räknas fram ur frasen och delrörelsernas counts, så att
+   siffran får en förklaring i stället för att bara nötas in.
+   ============================================================ */
+function repsNum(b) { const m = String(b.reps).match(/^\s*(\d+)\s*x?\s*$/i); return m ? +m[1] : null; }
+// Övningen i banken: exakt namn först, annars det längsta namn som
+// ingår i blockets namn (Half Roll Down hittas för Slow Half Roll Down).
+// ok väljer vilka poster som räknas, så att till exempel utgångsläget
+// hämtas från Half Roll Down även när Slow Half Roll Down har en egen post.
+// En variant matchar grundövningen om namnet börjar med den (100s With
+// Single-Leg Scissor) eller bara har ett tempoord före (Slow Half Roll
+// Down). Side Plank är en egen övning och matchar inte Plank.
+// Övergångar och uppställningar hämtar aldrig något från banken.
+const NOT_EXERCISE = /^(övergång|förbered|upprepa|transition|set up|repeat)/i;
+function libFor(b, ok = () => true) {
+  const lib = S.data.library, k = nameKey(b.move);
+  if (!k || NOT_EXERCISE.test(b.move)) return null;
+  if (lib[k] && ok(lib[k])) return lib[k];
+  let best = null;
+  Object.keys(lib).forEach(x => {
+    const fits = k.startsWith(x + ' ') || new RegExp('^(SLOW|FAST|FULL|MODIFIED) ' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$').test(k);
+    if (ok(lib[x]) && fits && (!best || x.length > best.length)) best = x;
+  });
+  return best ? lib[best] : null;
+}
+function techOf(b) { return b.tech.length ? b.tech : (libFor(b, e => e.tech.length)?.tech || []); }
+function spineOf(b) { return b.spine || libFor(b, e => e.spine)?.spine || ''; }
+function sayLines(b) { return techOf(b).filter(l => l.includes('**')); }
+function facetsOf(b) {
+  const f = ['move'];
+  if (repsNum(b)) f.push('reps');
+  if (sayLines(b).length) f.push('say');
+  if (spineOf(b)) f.push('spine');
+  return f;
+}
+function learnLibrary(tracks) {
+  tracks.forEach(t => t.blocks.forEach(b => {
+    const k = nameKey(b.move);
+    if (!k || !b.tech.length) return;
+    const e = S.data.library[k] || { name: b.move, setup: [], exec: [], tech: [], spine: '' };
+    e.tech = b.tech.slice();
+    if (b.spine) e.spine = b.spine;
+    S.data.library[k] = e;
+  }));
+}
+function phraseCounts(p) {
+  const m = String(p || '').replace(/\s/g, '').match(/^(\d+)?(½)?x(\d+)$/i);
+  if (!m || (!m[1] && !m[2])) return null;
+  const n = (+m[1] || 0) + (m[2] ? 0.5 : 0);
+  return { n, base: +m[3], total: n * +m[3] };
+}
+function stepSum(b) { return b.steps.reduce((s, x) => s + (parseFloat(x.cts) || 0), 0); }
+function fmtHalf(n) { return n % 1 ? (Math.floor(n) || '') + '½' : String(n); }
+function repsWhy(b) {
+  const p = phraseCounts(b.phrase), r = repsNum(b);
+  let sum = stepSum(b) || parseFloat(b.counts) || 0;
+  // Står hela blockets counts i stället för per rep, räkna om.
+  if (p && r > 1 && !b.steps.length && Math.abs(sum - p.total) < 0.01) sum = p.total / r;
+  if (!p || !sum || !r || Math.abs(p.total - r * sum) > 0.01) return '';
+  const unit = p.base === 8 ? 'åttor' : p.base === 6 ? 'sexor' : 'fraser om ' + p.base;
+  return `${fmtHalf(p.n)} ${unit}, ${sum} counts per rep, alltså ${r} reps`;
+}
+// Andningen markeras i egen färg så att den syns direkt.
+function breathHtml(html) { return html.replace(/\b(andas in|andas ut|inhale|exhale)\b/gi, '<span class="breath">$1</span>'); }
+function techHtml(line) { return breathHtml(esc(line).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')); }
+
+/* ============================================================
+   UTSPRIDD REPETITION
+   Kunde inte: tillbaka idag. Osäker: lite längre. Kunde: 1, 3,
+   sen gånger "ease". Före lansering kapas intervallet så att
+   varje del hinner repeteras flera gånger innan premiären.
+   ============================================================ */
+function isDue(s, today) { return !s.due || s.due <= today; }
+function srsStatus(s) {
+  if (!s.n || s.lastGrade === 0) return 'bad';
+  if (s.interval >= 7 && s.lastGrade === 2) return 'good';
+  return 'mid';
+}
+function blockStatus(b) {
+  const st = facetsOf(b).map(f => srsStatus(b.srs[f]));
+  return st.includes('bad') ? 'bad' : st.includes('mid') ? 'mid' : 'good';
+}
+const STATUS_LABEL = { good: 'Sitter', mid: 'Nästan', bad: 'Behöver övas' };
+
+function dueItems(today) {
+  const out = [];
+  passBlocks().forEach(({ r, t, b }) => facetsOf(b).forEach(f => {
+    if (isDue(b.srs[f], today)) out.push({ rid: r.id, tid: t.id, bid: b.id, f, s: b.srs[f] });
+  }));
+  return out;
+}
+
+function grade(r, s, g) {
+  const t = todayStr();
+  s.n++;
+  s.lastGrade = g;
+  if (g === 0) { s.interval = 0; s.ease = Math.max(1.3, s.ease - 0.2); }
+  else if (g === 1) { s.interval = Math.max(1, Math.round(s.interval * 1.2)); s.ease = Math.max(1.3, s.ease - 0.15); }
+  else { s.interval = s.interval < 1 ? 1 : s.interval < 3 ? 3 : Math.round(s.interval * s.ease); }
+  if (r.launchDate) {
+    const left = diffDays(t, r.launchDate);
+    if (left > 0) s.interval = Math.min(s.interval, Math.max(1, Math.ceil(left / 2)));
+  }
+  s.due = addDays(t, s.interval);
+  save();
+}
+
+function statusBar(blocks) {
+  if (!blocks.length) return '<div class="bar"></div>';
+  const c = { good: 0, mid: 0, bad: 0 };
+  blocks.forEach(b => c[blockStatus(b)]++);
+  return '<div class="bar">' + ['good', 'mid', 'bad'].map(k => c[k] ? `<span class="s-${k}" style="width:${c[k] / blocks.length * 100}%"></span>` : '').join('') + '</div>';
+}
+function legend() {
+  return `<div class="legend">${['good', 'mid', 'bad'].map(k => `<span><i class="dot s-${k}"></i>${STATUS_LABEL[k]}</span>`).join('')}</div>`;
+}
+
+/* ============================================================
+   LJUD (sparas bara i telefonen, i IndexedDB)
+   ============================================================ */
+const idb = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('passminne-ljud', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('ljud');
+      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('ljud', mode);
+      const q = fn(tx.objectStore('ljud'));
+      tx.oncomplete = () => res(q && q.result);
+      tx.onerror = () => rej(tx.error);
+    });
+  },
+  get(k) { return this.run('readonly', s => s.get(k)); },
+  set(k, v) { return this.run('readwrite', s => s.put(v, k)); },
+  del(k) { return this.run('readwrite', s => s.delete(k)); }
+};
+
+/* ============================================================
+   NAVIGERING & RENDERING
+   ============================================================ */
+function go(view) {
+  // Stäng bara av genomgången när vi lämnar den, annars raderas
+  // inställningarna som mode() precis har skapat.
+  if (S.view.name === 'rehearse') stopRehearse();
+  S.view = view;
+  render();
+  window.scrollTo(0, 0);
+}
+function header(title, back, right = '') {
+  $('#top').innerHTML =
+    (back ? `<button class="back" data-act="back">‹ ${esc(back)}</button>` : '') +
+    `<h1>${esc(title)}</h1>` + right;
+}
+function render() {
+  const v = S.view;
+  const views = { home: vHome, release: vRelease, track: vTrack, learn: vLearn, cues: vCues, quiz: vQuiz, rehearse: vRehearse };
+  if (v.rid && !rel(v.rid)) S.view = { name: 'home' };
+  if (v.tid && !trk(v.rid, v.tid)) S.view = v.rid && rel(v.rid) ? { name: 'release', rid: v.rid } : { name: 'home' };
+  $('#app').innerHTML = (views[S.view.name] || vHome)();
+  if (S.view.name === 'rehearse') startRehearseView();
+}
+window.addEventListener('scroll', () => $('#top').classList.toggle('scrolled', window.scrollY > 4), { passive: true });
+
+function launchLabel(r) {
+  if (!r.launchDate) return 'Inget lanseringsdatum';
+  const d = diffDays(todayStr(), r.launchDate);
+  if (d > 1) return `Lansering ${fmtDate(r.launchDate)} · om ${d} dagar`;
+  if (d === 1) return 'Lansering i morgon';
+  if (d === 0) return 'Lansering idag';
+  return `Lanserad ${fmtDate(r.launchDate)}`;
+}
+function metaStr(b) {
+  const r = repsNum(b);
+  return [b.phrase, b.reps && (r ? r + ' reps' : b.reps), !b.steps.length && b.counts && b.counts + ' cts'].filter(Boolean).join(' · ');
+}
+function moveHtml(b) {
+  return (b.letter ? `<span class="letter">${esc(b.letter)}</span> ` : '') + esc(b.move || 'Utan namn');
+}
+function stepsHtml(b) {
+  if (!b.steps.length) return '';
+  return `<span class="steps">${b.steps.map(s => `<span><span>${breathHtml(esc(s.text))}</span><span class="c">${esc(s.cts)}</span></span>`).join('')}</span>`;
+}
+function techListHtml(lines) {
+  return lines.length ? `<span class="tech">${lines.map(l => `<span>${techHtml(l)}</span>`).join('')}</span>` : '';
+}
+// Allt om blocket: delrörelser, ryggläge, det som måste sägas
+// (fetstil) överst och sen resten av Så gör du, och anteckning.
+function detailHtml(b) {
+  const must = sayLines(b), rest = techOf(b).filter(l => !must.includes(l)), sp = spineOf(b);
+  const lib = libFor(b, e => e.setup.length || e.exec.length);
+  return stepsHtml(b) +
+    (sp ? `<span class="spine">${esc(SPINE[sp])}</span>` : '') +
+    (must.length ? `<span class="sublabel">Det här ska du säga</span>${techListHtml(must)}` : '') +
+    (rest.length ? `<span class="sublabel">Så gör du</span>${techListHtml(rest)}` : '') +
+    (lib && lib.setup.length ? `<span class="sublabel">Utgångsläge</span>${techListHtml(lib.setup)}` : '') +
+    (lib && lib.exec.length ? `<span class="sublabel">Utförande</span>${techListHtml(lib.exec)}` : '') +
+    (b.note ? `<span class="note" style="display:block">${esc(b.note)}</span>` : '');
+}
+function blockHtml(b, opts = {}) {
+  const st = blockStatus(b);
+  const act = opts.act ? `data-act="${opts.act}" data-bid="${b.id}"` : '';
+  const meta = metaStr(b);
+  return `<button class="blk ${opts.cls || ''}" ${act}>
+    <span class="time">${fmtTime(b.time)}</span>
+    <span class="grow">
+      <span class="move">${opts.move ?? moveHtml(b)}</span>
+      ${opts.hideMeta || !meta ? '' : `<span class="meta"> · ${esc(meta)}</span>`}
+      ${opts.hideMeta || !b.cue ? '' : `<span class="cue" style="display:block">♪ ${esc(b.cue)}</span>`}
+      ${opts.showNote ? detailHtml(b) : ''}
+    </span>
+    ${opts.dot === false ? '' : `<i class="dot s-${st}" title="${STATUS_LABEL[st]}"></i>`}
+  </button>`;
+}
+
+/* ---------- Startsida ---------- */
+function vHome() {
+  header('Mina pass');
+  const t = todayStr();
+  const rs = S.data.releases;
+  if (!rs.length) {
+    return `<div class="empty"><p>Du har inga pass än. Lägg till din första release för att börja.</p>
+      <div class="btn-row"><button class="btn primary" data-act="pickPdf">Läs in release</button><button class="btn" data-act="addRelease">Lägg till release</button></div></div>` + backupSection();
+  }
+  const due = dueItems(t).length;
+  const mins = [[5, '5 min'], [15, '15 min'], [30, '30 min'], [0, 'Allt']];
+  let h = `<section class="card">
+    <div class="today">
+      <div class="today-num">${due}</div>
+      <div class="grow">${due ? `Idag: ${due} frågor att repetera` : 'Inget att repetera idag.'}</div>
+    </div>
+    ${due ? `<p class="small muted" style="margin:14px 0 8px">Hur mycket tid har du idag?</p>
+      <div class="seg">${mins.map(([m, l]) => `<button class="${S.minutes === m ? 'on' : ''}" data-act="setMinutes" data-m="${m}">${l}</button>`).join('')}</div>
+      <button class="btn primary block" data-act="quizDue">Starta förhör</button>` : ''}
+  </section>`;
+  h += '<div class="section-title">Releaser</div>';
+  rs.slice().sort((a, b) => (a.launchDate || '9999').localeCompare(b.launchDate || '9999')).forEach(r => {
+    const blocks = r.tracks.flatMap(x => x.blocks);
+    h += `<button class="row" data-act="openRelease" data-rid="${r.id}">
+      <span class="grow"><span class="title">${esc(r.name)}</span><br>
+      <span class="sub">${esc(launchLabel(r))} · ${r.tracks.length} spår</span>
+      ${statusBar(blocks)}</span><span class="chev">›</span></button>`;
+  });
+  h += `<div class="btn-row" style="margin-top:4px"><button class="btn" data-act="pickPdf">Läs in release</button><button class="btn" data-act="addRelease">Lägg till release</button></div>`;
+  return h + backupSection();
+}
+function backupSection() {
+  return `<div class="section-title">Backup</div>
+    <div class="card small muted">Passen finns bara i den här telefonen. Exportera en backup då och då och spara den i Filer. Låtarna följer inte med i backupen.
+      <div class="btn-row"><button class="btn" data-act="exportBackup">Exportera backup</button><button class="btn" data-act="importBackup">Importera backup</button></div>
+    </div>`;
+}
+
+/* ---------- Release ---------- */
+function vRelease() {
+  const r = rel(S.view.rid);
+  header(r.name, 'Mina pass', `<button class="hbtn" data-act="editRelease">Ändra</button>`);
+  let h = `<p class="muted small" style="margin:0 4px 12px">${esc(launchLabel(r))}</p>`;
+  if (!r.tracks.length) {
+    h += `<div class="empty"><p>Inga spår än. Lägg till dem ett i taget eller klistra in text från noterna.</p></div>`;
+  } else {
+    const row = t => `<div class="trow">
+      <button class="row" data-act="openTrack" data-tid="${t.id}">
+        <span class="grow"><span class="title">${esc(t.num ? t.num + ' ' + t.name : t.name)}</span><br>
+        <span class="sub">${[t.done && 'Klar', t.song, t.blocks.length + ' block', t.audioName && '♪ låt tillagd'].filter(Boolean).map(esc).join(' · ')}</span>
+        ${statusBar(t.blocks)}</span></button>
+      <label class="switch"><input type="checkbox" data-pass="${t.id}" ${t.inPass ? 'checked' : ''} aria-label="Mitt pass"></label>
+    </div>`;
+    const inP = r.tracks.filter(t => t.inPass), rest = r.tracks.filter(t => !t.inPass);
+    h += '<div class="section-title">Mitt pass</div>';
+    h += inP.length ? inP.map(row).join('') : '<p class="muted small" style="margin:0 4px 12px">Bocka i de spår du ska hålla.</p>';
+    if (rest.length) h += '<div class="section-title">Övriga spår</div>' + rest.map(row).join('');
+    h += legend();
+  }
+  h += `<div class="btn-row" style="margin-top:18px"><button class="btn" data-act="addTrack">Lägg till spår</button><button class="btn" data-act="paste">Klistra in</button></div>`;
+  return h;
+}
+
+/* ---------- Spår ---------- */
+function vTrack() {
+  const r = rel(S.view.rid), t = trk(S.view.rid, S.view.tid);
+  header(t.num ? t.num + ' ' + t.name : t.name, r.name, `<button class="hbtn" data-act="editTrack">Ändra</button>`);
+  const none = t.blocks.length ? '' : 'disabled';
+  let h = `<div class="modes">
+    <button class="mode" data-act="mode" data-m="learn" ${none}><b>Lär in</b><span>Ett block i taget, sen hela kedjan</span></button>
+    <button class="mode" data-act="mode" data-m="cues" ${none}><b>Ledtrådar</b><span>Bara första bokstäverna</span></button>
+    <button class="mode" data-act="mode" data-m="quiz" ${none}><b>Förhör</b><span>Testa dig själv i blandad ordning</span></button>
+    <button class="mode" data-act="mode" data-m="rehearse" ${none}><b>Mental genomgång</b><span>Följ med i musiken</span></button>
+  </div>`;
+  h += `<div class="row" style="margin-top:10px"><span class="grow"><span class="title">Låt</span><br><span class="sub">${t.audioName ? esc(t.audioName) : 'Ingen låt tillagd'}</span></span>
+    <button class="linkbtn" data-act="pickAudio">${t.audioName ? 'Byt' : 'Lägg till'}</button>
+    ${t.audioName ? '<button class="linkbtn" data-act="removeAudio" style="color:var(--bad)">Ta bort</button>' : ''}</div>`;
+  h += `<button class="btn block" data-act="toggleDone" style="margin-top:2px">${t.done ? 'Träna igen' : 'Markera som klar'}</button>`;
+  if (t.intro) h += `<div class="card small" style="margin-top:10px;white-space:pre-wrap">${esc(t.intro)}</div>`;
+  h += '<div class="section-title">Block</div>';
+  if (!t.blocks.length) h += `<p class="muted" style="margin:0 4px 12px">Inga block än.</p>`;
+  t.blocks.forEach(b => h += blockHtml(b, { act: 'editBlock', showNote: true }));
+  h += `<button class="btn block" data-act="addBlock" style="margin-top:8px">Lägg till block</button>`;
+  if (t.blocks.length) h += legend();
+  return h;
+}
+
+/* ---------- Lär in (kedjeinlärning) ---------- */
+function vLearn() {
+  const t = trk(S.view.rid, S.view.tid);
+  header('Lär in', t.name);
+  const L = S.learn, n = t.blocks.length;
+  if (L.phase === 'done') {
+    return `<div class="card"><p><b>Du har gått igenom hela spåret.</b></p><p class="muted">Nästa steg är Ledtrådar eller Förhör. I morgon kan du köra Lär in igen och se hur mycket som sitter kvar.</p>
+      <div class="btn-row"><button class="btn" data-act="mode" data-m="cues">Ledtrådar</button><button class="btn primary" data-act="mode" data-m="quiz">Förhör</button></div></div>`;
+  }
+  if (L.phase === 'read') {
+    const b = t.blocks[L.k - 1];
+    return `<div class="progress">Nytt block: ${L.k} av ${n}</div>
+      <p class="muted small" style="margin:0 4px 10px">Läs blocket och säg det högt. Sen döljs det.</p>
+      ${blockHtml(b, { dot: false, showNote: true, cls: 'current' })}
+      <button class="btn primary block" data-act="learnRead" style="margin-top:14px">Jag har läst det</button>`;
+  }
+  let h = `<div class="progress">${L.k === 1 ? 'Block 1' : `Block 1 till ${L.k}`} av ${n}</div>
+    <p class="muted small" style="margin:0 4px 10px">Säg alla block från början. Tryck på ett block för att se om du hade rätt.</p>`;
+  t.blocks.slice(0, L.k).forEach(b => {
+    const open = L.open.has(b.id);
+    h += blockHtml(b, open ? { act: 'learnFlip', dot: false } : { act: 'learnFlip', dot: false, cls: 'masked', move: 'Vad kommer här?', hideMeta: true });
+  });
+  h += `<div class="btn-row"><button class="btn" data-act="learnMiss">Missade något</button><button class="btn primary" data-act="learnOk">Kunde alla</button></div>`;
+  return h;
+}
+
+/* ---------- Ledtrådar (gradvis bortplockat stöd) ---------- */
+function initials(s) {
+  return String(s || '').split(/\s+/).filter(Boolean).map(w => {
+    const m = w.match(/[\p{L}\p{N}]/u);
+    return m ? m[0] + '…' : w;
+  }).join(' ');
+}
+function vCues() {
+  const t = trk(S.view.rid, S.view.tid);
+  header('Ledtrådar', t.name);
+  const C = S.cues;
+  const labels = ['Allt', 'Första bokstäver', 'Bara tid'];
+  let h = `<div class="seg">${labels.map((l, i) => `<button class="${C.level === i ? 'on' : ''}" data-act="cueLevel" data-l="${i}">${l}</button>`).join('')}</div>
+    <p class="muted small" style="margin:0 4px 10px">Tryck på ett block för att visa det.</p>`;
+  t.blocks.forEach(b => {
+    if (C.level === 0 || C.open.has(b.id)) h += blockHtml(b, { act: 'cueFlip', showNote: C.open.has(b.id) });
+    else if (C.level === 1) h += blockHtml(b, { act: 'cueFlip', cls: 'masked', move: esc(initials(b.move)) });
+    else h += blockHtml(b, { act: 'cueFlip', cls: 'masked', move: 'Vad kommer här?', hideMeta: true });
+  });
+  return h;
+}
+
+/* ---------- Förhör (aktiv återkallning) ---------- */
+function vQuiz() {
+  const Q = S.quiz;
+  header('Förhör', Q.back.label);
+  if (Q.idx >= Q.queue.length) {
+    return `<div class="card"><p><b>Klart för idag.</b></p><p class="muted">Du gick igenom ${Q.done} frågor. Det du inte kunde kommer tillbaka snart, det du kunde kommer glesare.</p>
+      <button class="btn primary block" data-act="back" style="margin-top:14px">Tillbaka</button></div>`;
+  }
+  const item = Q.queue[Q.idx];
+  const r = rel(item.rid), t = trk(item.rid, item.tid), b = t && t.blocks.find(x => x.id === item.bid);
+  if (!b || !facetsOf(b).includes(item.f)) { Q.idx++; return vQuiz(); }
+  const i = t.blocks.indexOf(b), prev = t.blocks[i - 1];
+  const tname = t.num ? t.num + ' ' + t.name : t.name;
+  let ask, answer;
+  if (item.f === 'move') {
+    ask = prev
+      ? `<div class="quiz-time">${fmtTime(prev.time)}</div><div class="quiz-ctx">${moveHtml(prev)}</div><div class="quiz-q" style="margin-top:10px">Vad byter du till efter det här?</div>`
+      : `<div class="quiz-q">Vad är första övningen?</div>`;
+    answer = `<div class="move">${moveHtml(b)}</div><div class="meta">Byte vid ${fmtTime(b.time)}${metaStr(b) ? ' · ' + esc(metaStr(b)) : ''}</div>${stepsHtml(b)}`;
+  } else if (item.f === 'reps') {
+    ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Hur många reps?</div>`;
+    const why = repsWhy(b);
+    answer = `<div class="move">${repsNum(b)} reps</div>${why ? `<div class="why">${esc(why)}</div>` : ''}${stepsHtml(b)}`;
+  } else if (item.f === 'say') {
+    ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Vad ska du säga här? Säg det högt innan du visar svaret.</div>`;
+    answer = `<span class="sublabel" style="margin-top:0">Det här ska du säga</span>${techListHtml(sayLines(b))}`;
+  } else {
+    ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Vilket ryggläge?</div>`;
+    answer = `<div class="move">${esc(SPINE[spineOf(b)])}</div>`;
+  }
+  let h = `<div class="progress">${Q.idx + 1} av ${Q.queue.length}</div>
+    <div class="quiz-card">
+      <div class="quiz-track">${esc(r.name)} · ${esc(tname)}</div>
+      ${ask}`;
+  if (Q.shown) h += `<div class="quiz-answer">${answer}</div>`;
+  h += '</div>';
+  h += Q.shown
+    ? `<div class="grades"><button class="btn g0" data-act="grade" data-g="0">Kunde inte</button><button class="btn g1" data-act="grade" data-g="1">Osäker</button><button class="btn g2" data-act="grade" data-g="2">Kunde</button></div>`
+    : `<button class="btn primary block" data-act="quizShow" style="margin-top:14px">Visa svar</button>`;
+  return h;
+}
+
+/* ---------- Mental genomgång ---------- */
+function vRehearse() {
+  const t = trk(S.view.rid, S.view.tid);
+  header('Mental genomgång', t.name);
+  const R = S.reh;
+  return `<div class="reh-clock"><b id="rh-time">0:00</b><span id="rh-total"></span></div>
+    <div class="reh-bar"><span id="rh-bar"></span></div>
+    <button class="reh-now" data-act="rehReveal"><span class="reh-label" id="rh-now-label">Nu</span><span id="rh-now"></span></button>
+    <div class="reh-next"><div class="reh-label" id="rh-next-label"></div><div id="rh-next"></div></div>
+    <div class="controls">
+      <button class="btn" data-act="rehSeek" data-s="-10">−10 s</button>
+      <button class="btn primary" data-act="rehPlay" id="rh-play">Starta</button>
+      <button class="btn" data-act="rehSeek" data-s="10">+10 s</button>
+    </div>
+    <button class="btn block" data-act="rehRestart" style="margin-top:8px">Börja om</button>
+    <label class="toggle"><input type="checkbox" id="rh-hide" ${R.hide ? 'checked' : ''}> Dölj rörelserna så att jag måste minnas dem</label>
+    ${t.audioName ? '' : '<p class="muted small" style="margin-top:12px">Ingen låt tillagd. Tiden räknas ändå, så du kan starta låten någon annanstans samtidigt.</p>'}`;
+}
+
+/* ============================================================
+   MENTAL GENOMGÅNG: tid & ljud
+   ============================================================ */
+async function startRehearseView() {
+  const R = S.reh, t = trk(S.view.rid, S.view.tid);
+  R.timer = setInterval(rehTick, 200);
+  if (t.audioName) {
+    try {
+      const blob = await idb.get(t.id);
+      if (blob && S.view.name === 'rehearse' && S.reh === R) {
+        R.url = URL.createObjectURL(blob);
+        R.audio = new Audio(R.url);
+        R.audio.preload = 'auto';
+        R.audio.addEventListener('ended', () => { R.playing = false; updatePlayBtn(); releaseWake(); });
+        R.audio.addEventListener('loadedmetadata', rehTick);
+      }
+    } catch (e) { toast('Kunde inte läsa in låten.'); }
+  }
+  rehTick();
+}
+function stopRehearse() {
+  const R = S.reh;
+  if (!R) return;
+  clearInterval(R.timer);
+  if (R.audio) { R.audio.pause(); R.audio = null; }
+  if (R.url) URL.revokeObjectURL(R.url);
+  releaseWake();
+  S.reh = null;
+}
+function rehTime() {
+  const R = S.reh;
+  if (R.audio) return R.audio.currentTime;
+  return R.playing ? R.base + (performance.now() - R.startedAt) / 1000 : R.base;
+}
+function rehDuration(t) {
+  const R = S.reh;
+  if (R.audio && isFinite(R.audio.duration)) return R.audio.duration;
+  const last = t.blocks[t.blocks.length - 1];
+  return (last ? last.time : 0) + 30;
+}
+function rehSet(sec) {
+  const R = S.reh, t = trk(S.view.rid, S.view.tid);
+  sec = Math.max(0, Math.min(sec, rehDuration(t)));
+  if (R.audio) R.audio.currentTime = sec;
+  else { R.base = sec; R.startedAt = performance.now(); }
+  rehTick();
+}
+function updatePlayBtn() { const b = $('#rh-play'); if (b) b.textContent = S.reh.playing ? 'Paus' : 'Starta'; }
+async function wake() { try { if ('wakeLock' in navigator) S.reh.lock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function releaseWake() { try { S.reh && S.reh.lock && S.reh.lock.release(); } catch (e) {} }
+
+function rehTick() {
+  const R = S.reh;
+  if (!R || S.view.name !== 'rehearse') return;
+  const t = trk(S.view.rid, S.view.tid);
+  const now = rehTime(), dur = rehDuration(t);
+  if (!R.audio && R.playing && now >= dur) { R.base = dur; R.playing = false; updatePlayBtn(); releaseWake(); }
+  let i = -1;
+  t.blocks.forEach((b, k) => { if (b.time <= now) i = k; });
+  if (i !== R.lastI) { R.lastI = i; R.shown = false; }
+  const cur = t.blocks[i], next = t.blocks[i + 1];
+  $('#rh-time').textContent = fmtTime(now);
+  $('#rh-total').textContent = 'av ' + fmtTime(dur);
+  $('#rh-bar').style.width = Math.min(100, now / dur * 100) + '%';
+
+  const body = (b, big) => {
+    const meta = metaStr(b);
+    const say = big ? sayLines(b) : [];
+    return `<div class="reh-move">${moveHtml(b)}</div>` +
+      (meta ? `<div class="reh-meta">${esc(meta)}</div>` : '') +
+      (spineOf(b) && big ? `<div><span class="spine">${esc(SPINE[spineOf(b)])}</span></div>` : '') +
+      (b.cue && big ? `<div class="reh-cue">♪ ${esc(b.cue)}</div>` : '') +
+      (say.length ? `<div style="text-align:left;margin-top:8px">${techListHtml(say)}</div>` : '');
+  };
+  const hidden = R.hide && !R.shown;
+  $('#rh-now-label').textContent = cur ? `Nu · block ${i + 1} av ${t.blocks.length}` : 'Före första blocket';
+  $('#rh-now').innerHTML = !cur ? '<div class="reh-meta">Vänta in första blocket</div>'
+    : hidden ? '<div class="reh-move muted">Vad gör du nu?</div><div class="reh-meta">Tryck för att visa</div>'
+    : body(cur, true);
+  if (next) {
+    const s = Math.max(0, Math.ceil(next.time - now));
+    $('#rh-next-label').textContent = `Om ${s} s`;
+    $('#rh-next').innerHTML = R.hide ? '<div class="reh-meta">Nästa block</div>' : body(next, false);
+  } else {
+    $('#rh-next-label').textContent = 'Sista blocket';
+    $('#rh-next').innerHTML = '';
+  }
+}
+
+/* ============================================================
+   KLISTRA IN FRÅN NOTER
+   # Spårnamn
+   1:45 | 8 cts x 4 | Rörelse | ljud: markering
+   Rader utan tid läggs till som anteckning på blocket ovanför.
+   ============================================================ */
+function fillBlock(B, rest) {
+  rest.split('|').map(s => s.trim()).filter(Boolean).forEach(p => {
+    if (/^(ljud|cue|♪)\s*:?/i.test(p)) { B.cue = p.replace(/^(ljud|cue|♪)\s*:?\s*/i, ''); return; }
+    if (/\d/.test(p) && /(cts|counts?|\bct\b|reps?|\d\s*[x×]\s*\d)/i.test(p)) {
+      const m = p.match(/(\d+)\s*(?:cts|counts?|ct)?\s*[x×]\s*(\d+)/i);
+      if (m) { B.counts = m[1]; B.reps = m[2]; return; }
+      const c = p.match(/(\d+)\s*(?:cts|counts?|ct)\b/i), r = p.match(/(\d+)\s*reps?\b/i);
+      if (c) B.counts = c[1];
+      if (r) B.reps = r[1];
+      return;
+    }
+    if (!B.move) B.move = p;
+    else B.note = B.note ? B.note + '\n' + p : p;
+  });
+}
+function parsePaste(text) {
+  const tracks = [];
+  let T = null, B = null, skipped = 0;
+  String(text || '').split(/\r?\n/).forEach(raw => {
+    const line = raw.trim();
+    if (!line) return;
+    if (line.startsWith('#')) {
+      T = newTrack(line.replace(/^#+\s*/, '') || 'Spår ' + (tracks.length + 1));
+      tracks.push(T); B = null; return;
+    }
+    const m = line.match(/^(\d{1,3}[:.]\d{2})\b\s*[|,;]?\s*(.*)$/);
+    if (m) {
+      if (!T) { T = newTrack('Spår ' + (tracks.length + 1)); tracks.push(T); }
+      B = newBlock();
+      B.time = parseTime(m[1]);
+      fillBlock(B, m[2]);
+      T.blocks.push(B);
+      return;
+    }
+    if (B) B.note = B.note ? B.note + '\n' + line : line;
+    else skipped++;
+  });
+  tracks.forEach(sortBlocks);
+  return { tracks, skipped };
+}
+function pastePreview() {
+  const { tracks, skipped } = parsePaste($('#f-paste').value);
+  const nb = tracks.reduce((s, t) => s + t.blocks.length, 0);
+  $('#paste-prev').textContent = tracks.length
+    ? `Hittade ${tracks.length} spår och ${nb} block.` + (skipped ? ` ${skipped} rader kunde inte läsas.` : '')
+    : 'Inget hittat än.';
+}
+
+/* ============================================================
+   LÄS IN PDF (Les Mills koreografinoter)
+   PDF:en läses bara i telefonen, inget skickas iväg. pdf.js ger
+   varje textbit med position och typsnitt, så kolumnerna kan
+   skiljas åt och fetstil (obligatoriska cues) kännas igen.
+   Koreografisidan: tid | fras | bokstav | övning + delrörelser | CTS | REPS
+   Technique-sidan: rubrik per övning med punkter, två kolumner.
+   ============================================================ */
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = PDFJS + 'pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; res(window.pdfjsLib); };
+    s.onerror = () => { s.remove(); rej(new Error('pdfjs')); };
+    document.head.appendChild(s);
+  });
+}
+async function readPdfPages(file) {
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pages = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const pg = await doc.getPage(p);
+    const tc = await pg.getTextContent();
+    await pg.getOperatorList(); // laddar typsnitten så att namnen går att läsa
+    const fonts = {}, items = [];
+    tc.items.forEach(i => {
+      if (!i.str || !i.str.trim()) return;
+      if (!(i.fontName in fonts)) { let n = ''; try { n = pg.commonObjs.get(i.fontName).name || ''; } catch (e) {} fonts[i.fontName] = n; }
+      items.push({ s: i.str, x: i.transform[4], y: i.transform[5], h: i.height, bold: /bold|black|heavy/i.test(fonts[i.fontName]) });
+    });
+    pages.push({ items, width: pg.view[2] });
+  }
+  return pages;
+}
+function pdfRows(items) {
+  const rows = [];
+  let row = null;
+  items.slice().sort((a, b) => b.y - a.y || a.x - b.x).forEach(i => {
+    if (!row || Math.abs(i.y - row.y) > 2) { row = { y: i.y, items: [] }; rows.push(row); }
+    row.items.push(i);
+  });
+  rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
+  return rows;
+}
+const rowText = items => items.map(i => i.s).join(' ').replace(/\s+/g, ' ').replace(/\s+([:;,.])/g, '$1').trim();
+function markBold(items) {
+  return items.map(i => i.bold ? '**' + i.s.trim() + '**' : i.s).join(' ')
+    .replace(/\*\*(\s*)\*\*/g, '$1').replace(/\s+/g, ' ').replace(/\s+([:;,.])/g, '$1').trim();
+}
+function titleCase(s) { return s.toLowerCase().replace(/(^|[\s(\/-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()); }
+function sentenceCase(s) { s = s.toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); }
+function footerY(items) { const f = items.find(i => i.s.includes('©')); return f ? f.y + 2 : -Infinity; }
+
+function parseChoreoPage(page) {
+  const fy = footerY(page.items);
+  const rows = pdfRows(page.items.filter(i => i.y > fy));
+  const hi = rows.findIndex(r => r.items.some(i => i.s.trim() === 'EXERCISE') && r.items.some(i => i.s.trim() === 'REPS'));
+  if (hi < 0) return null;
+  const head = rows[hi].items, col = w => head.find(i => i.s.trim() === w)?.x;
+  const exX = col('EXERCISE'), repsX = col('REPS'), ctsX = col('CTS') ?? repsX - 40;
+  let num = '', name = '';
+  for (const r of rows.slice(0, hi)) {
+    const m = rowText(r.items).match(/^(\d{1,2})\.\s*(.+)$/);
+    if (m) { num = m[1].padStart(2, '0'); name = sentenceCase(m[2]); break; }
+  }
+  if (!num) return null;
+  const T = newTrack(name);
+  T.num = num;
+  let B = null, inNote = false, prime = false;
+  const intro = [];
+  rows.slice(hi + 1).forEach(r => {
+    const left = r.items.filter(i => i.x < exX - 3);
+    const main = r.items.filter(i => i.x >= exX - 3 && i.x < ctsX - 15);
+    const cts = r.items.find(i => i.x >= ctsX - 15 && i.x < repsX - 5 && /^[\d½.]+$/.test(i.s.trim()));
+    const reps = r.items.find(i => i.x >= repsX - 5);
+    const time = left.find(i => /^\d{1,2}:\d{2}$/.test(i.s.trim()));
+    // Upphöjd etta efter bokstaven betyder prim (B'). Den ligger lite
+    // högre än raden, så den kan hamna på en egen rad före blocket.
+    const sup = left.find(i => /^[12]$/.test(i.s.trim()) && i.h < 15 && i.x > exX - 30);
+    if (sup && !time) { prime = +sup.s.trim(); return; }
+    if (time) {
+      B = newBlock();
+      B.time = parseTime(time.s.trim());
+      const letter = left.find(i => /^[A-Z]$/.test(i.s.trim()) && i.x > exX - 30);
+      const phrase = left.filter(i => i !== time && i !== letter && i !== sup && i.x > time.x && i.x < exX - 30 && !(i.h > 15)).map(i => i.s.trim()).join(' ');
+      B.letter = letter ? letter.s.trim() + "'".repeat(prime || (sup ? +sup.s.trim() : 0)) : '';
+      B.phrase = phrase;
+      const bold = rowText(main.filter(i => i.bold));
+      B.move = rowText(main.map(i => i.bold ? { s: titleCase(i.s) } : i));
+      B._name = bold || B.move;
+      if (reps) B.reps = reps.s.trim().replace(/x$/i, '');
+      if (cts) B.counts = cts.s.trim();
+      T.blocks.push(B);
+      prime = false; inNote = false;
+      return;
+    }
+    const text = rowText(main);
+    if (!B) { if (text) intro.push(text); return; }
+    if (reps && !B.reps) B.reps = reps.s.trim().replace(/x$/i, '');
+    if (!text) return;
+    // Övningsnamn som fortsätter på nästa rad
+    if (!B.steps.length && !B.note && !cts && main.every(i => i.bold)) {
+      B.move += ' ' + titleCase(text);
+      B._name += ' ' + text;
+      return;
+    }
+    if (/^(NOTE|OPTIONS?)\b/i.test(text)) { B.note += (B.note ? '\n' : '') + text; inNote = true; }
+    else if (cts) { B.steps.push({ text, cts: cts.s.trim() }); inNote = false; }
+    else if (inNote) B.note += ' ' + text;
+    else B.steps.push({ text, cts: '' });
+    if (main.some(i => i.bold) && !inNote) B.tech.push(markBold(main));
+  });
+  T.blocks.forEach(b => { const s = stepSum(b); if (s) b.counts = String(s); });
+  T.intro = intro.join(' ').replace(/:\s*/, ':\n');
+  return T;
+}
+
+function parseTechniquePage(page) {
+  const fy = footerY(page.items);
+  const items = page.items.filter(i => i.y > fy);
+  const all = pdfRows(items);
+  const ti = all.findIndex(r => r.items.some(i => i.s.trim() === 'TECHNIQUE'));
+  if (ti < 0) return null;
+  let num = '', song = '';
+  for (const r of all.slice(0, ti + 1)) {
+    const m = rowText(r.items).match(/^(\d{1,2})\.\s*(.+)$/);
+    if (m) { num = m[1].padStart(2, '0'); song = titleCase(m[2].replace(/\s*\d+:\d{2}\s*mins?$/i, '')); break; }
+  }
+  if (!num) return null;
+  const topY = all[ti].y - 2, mid = page.width / 2, sections = [];
+  [items.filter(i => i.x < mid), items.filter(i => i.x >= mid)].forEach(colItems => {
+    let cur = null;
+    pdfRows(colItems.filter(i => i.y < topY)).forEach(r => {
+      const parts = r.items.filter(i => i.s.trim() !== '•');
+      const bullet = parts.length < r.items.length;
+      const text = rowText(parts);
+      if (!text) return;
+      // Rubrik: fet, bara versaler (100s räknas som versaler). En rubrik
+      // som fortsätter på nästa rad slås ihop med den förra.
+      const up = text.replace(/(\d)s\b/g, '$1S');
+      if (!bullet && parts.every(i => i.bold) && up === text.toUpperCase() && /[A-Z]/.test(up)) {
+        if (cur && !cur.lines.length) cur.name += ' ' + text;
+        else { cur = { name: text, lines: [] }; sections.push(cur); }
+        return;
+      }
+      if (!cur) return;
+      const marked = markBold(parts);
+      if (bullet || /^options?\b/i.test(text) || !cur.lines.length) cur.lines.push(marked);
+      else cur.lines[cur.lines.length - 1] = (cur.lines[cur.lines.length - 1] + ' ' + marked).replace(/\*\*(\s*)\*\*/g, '$1');
+    });
+  });
+  return { num, song, sections };
+}
+
+function detectSpine(lines) {
+  const t = lines.join(' ').toLowerCase();
+  const n = t.indexOf('neutral spine'), i = t.indexOf('imprint');
+  if (n < 0 && i < 0) return '';
+  if (i < 0) return 'neutral';
+  if (n < 0) return 'imprint';
+  return n < i ? 'neutral' : 'imprint';
+}
+
+function parsePdf(pages) {
+  const tracks = [], techs = [];
+  let relName = '';
+  pages.forEach(pg => {
+    if (!relName) {
+      const fy = footerY(pg.items);
+      const f = pg.items.find(i => Math.abs(i.y + 2 - fy) < 3 && !i.s.includes('©') && /[A-Z]{3}/.test(i.s));
+      if (f) relName = titleCase(f.s.trim());
+    }
+    const T = parseChoreoPage(pg);
+    if (T && T.blocks.length) { tracks.push(T); return; }
+    const tech = parseTechniquePage(pg);
+    if (tech) techs.push(tech);
+  });
+  tracks.forEach(T => {
+    const tech = techs.find(x => x.num === T.num);
+    if (tech) T.song = tech.song;
+    const secs = tech ? tech.sections : [];
+    const sKey = x => nameKey(x.name).replace(/^WITH /, '');
+    const within = (a, b) => (' ' + a + ' ').includes(' ' + b + ' ');
+    T.blocks.forEach((b, bi) => {
+      const k = nameKey(b._name);
+      // Ett block som upprepas står ofta utan delrörelser andra gången.
+      const first = k && T.blocks.slice(0, bi).find(x => x._key === k && x.steps.length);
+      b._key = k;
+      if (first && !b.steps.length) { b.steps = first.steps.map(s => ({ ...s })); b.counts = first.counts; }
+      if (!k) return;
+      const byLen = arr => arr.sort((x, y) => y.name.length - x.name.length)[0];
+      const s = secs.find(x => sKey(x) === k)
+        || byLen(secs.filter(x => within(k, sKey(x))))
+        || byLen(secs.filter(x => within(sKey(x), k)));
+      if (s) b.tech = [...b.tech, ...s.lines];
+      b.spine = detectSpine(b.tech);
+    });
+    T.blocks.forEach(b => { delete b._name; delete b._key; });
+  });
+  return { name: relName, tracks };
+}
+
+// En releasefil är en färdigöversatt release i samma format som
+// backupen, men den läggs till i stället för att ersätta allt.
+// En bankfil (kind: library) fyller på övningsbanken med utgångsläge
+// och utförande. Det som redan finns från releaserna behålls.
+function mergeLibrary(lib) {
+  const add = migrateLibrary(lib);
+  Object.entries(add).forEach(([k, e]) => {
+    const cur = S.data.library[k];
+    if (!cur) { S.data.library[k] = e; return; }
+    if (e.setup.length) cur.setup = e.setup;
+    if (e.exec.length) cur.exec = e.exec;
+    if (e.tech.length && !cur.tech.length) cur.tech = e.tech;
+    if (e.spine && !cur.spine) cur.spine = e.spine;
+  });
+  return Object.keys(add).length;
+}
+function readReleaseFile(text) {
+  const d = JSON.parse(text);
+  if (d && d.app === 'passminne' && d.kind === 'library' && d.library) return { library: d.library };
+  if (!d || d.app !== 'passminne' || d.kind !== 'release' || !d.release) throw new Error('fel format');
+  const r = migrate({ releases: [d.release] }).releases[0];
+  r.tracks.forEach(t => { t.id = uid(); t.audioName = ''; t.blocks.forEach(b => { b.id = uid(); }); });
+  return { name: r.name, tracks: r.tracks };
+}
+
+$('#pdfFile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  let res;
+  if (/\.json$/i.test(f.name) || f.type === 'application/json') {
+    try { res = readReleaseFile(await f.text()); }
+    catch (err) { return toast('Filen kunde inte läsas. Kontrollera att det är en releasefil till Passa dig.'); }
+    if (res.library) {
+      const n = mergeLibrary(res.library);
+      save(); render();
+      return toast(`Övningsbanken har fyllts på med ${n} övningar.`);
+    }
+  } else {
+    toast('Läser PDF:en …');
+    try { res = parsePdf(await readPdfPages(f)); }
+    catch (err) {
+      return toast(err && err.message === 'pdfjs'
+        ? 'PDF-läsaren kunde inte laddas. Kontrollera att telefonen har nät och försök igen.'
+        : 'PDF:en kunde inte läsas.');
+    }
+  }
+  if (!res.tracks.length) return toast('Hittade inga spår i filen. Den kanske har en annan uppställning än vanligt.');
+  S.pdfImport = res;
+  const nb = res.tracks.reduce((s, t) => s + t.blocks.length, 0);
+  openSheet(`<h2>Läs in release</h2>
+    <p class="help">Hittade ${res.tracks.length} spår och ${nb} block. Bocka i de spår du ska hålla.</p>
+    ${field('f-name', 'Releasenummer', res.name, 'autocomplete="off"')}
+    ${field('f-launch', 'Lanseringsdatum', '', 'type="date"')}
+    <div class="section-title" style="margin-top:6px">Mitt pass</div>
+    ${res.tracks.map((t, i) => `<label class="pick"><input type="checkbox" data-pick="${i}" ${t.inPass ? 'checked' : ''}>
+      <span><b style="font-weight:500">${esc(t.num + ' ' + t.name)}</b><br><span class="small muted">${[t.song, t.blocks.length + ' block'].filter(Boolean).map(esc).join(' · ')}</span></span></label>`).join('')}
+    <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="savePdf">Spara</button></div>`);
+});
+
+/* ============================================================
+   FORMULÄR (bottenark)
+   ============================================================ */
+function openSheet(inner) {
+  const s = $('#sheet');
+  s.innerHTML = `<div class="backdrop" data-act="closeSheet"></div><div class="panel">${inner}</div>`;
+  s.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet() {
+  const s = $('#sheet');
+  s.hidden = true; s.innerHTML = '';
+  document.body.style.overflow = '';
+}
+function field(id, label, value = '', attrs = '') {
+  return `<div class="field"><label for="${id}">${label}</label><input id="${id}" value="${esc(value)}" ${attrs}></div>`;
+}
+const val = id => ($('#' + id)?.value || '').trim();
+
+function releaseForm(r) {
+  openSheet(`<h2>${r ? 'Ändra release' : 'Ny release'}</h2>
+    ${field('f-name', 'Releasenummer', r?.name, 'placeholder="T.ex. Release 12" autocomplete="off"')}
+    ${field('f-launch', 'Lanseringsdatum', r?.launchDate, 'type="date"')}
+    <div class="btn-row"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="saveRelease">Spara</button></div>
+    ${r ? '<button class="btn danger block" data-act="deleteRelease" style="margin-top:8px">Ta bort release</button>' : ''}`);
+}
+function trackForm(t) {
+  openSheet(`<h2>${t ? 'Ändra spår' : 'Nytt spår'}</h2>
+    ${field('f-name', 'Namn', t?.name, 'placeholder="T.ex. Spår 1 · Låtnamn" autocomplete="off"')}
+    <div class="btn-row"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="saveTrack">Spara</button></div>
+    ${t ? '<button class="btn danger block" data-act="deleteTrack" style="margin-top:8px">Ta bort spår</button>' : ''}`);
+}
+function blockForm(b) {
+  S.editBid = b ? b.id : null;
+  openSheet(`<h2>${b ? 'Ändra block' : 'Nytt block'}</h2>
+    <div class="two">
+      ${field('f-time', 'Tid i låten (t.ex. 1:45)', b ? fmtTime(b.time) : '', 'inputmode="decimal" autocomplete="off"')}
+      ${field('f-letter', 'Bokstav (t.ex. B)', b?.letter, 'autocomplete="off"')}
+    </div>
+    ${field('f-move', 'Rörelse', b?.move, 'autocomplete="off"')}
+    <div class="two">
+      ${field('f-phrase', 'Fras (t.ex. 12x8)', b?.phrase, 'autocomplete="off"')}
+      ${field('f-reps', 'Reps', b?.reps, 'inputmode="numeric" autocomplete="off"')}
+    </div>
+    ${field('f-counts', 'Räkningar per rep (cts)', b?.counts, 'inputmode="numeric" autocomplete="off"')}
+    <div class="field"><label for="f-steps">Delrörelser, en per rad. Skriv counts efter | (t.ex. Lift hips | 8)</label><textarea id="f-steps">${esc((b?.steps || []).map(s => s.cts ? s.text + ' | ' + s.cts : s.text).join('\n'))}</textarea></div>
+    <div class="field"><label for="f-spine">Ryggläge</label><select id="f-spine" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)">
+      <option value="">Inget angivet</option>${Object.entries(SPINE).map(([k, l]) => `<option value="${k}" ${b?.spine === k ? 'selected' : ''}>${l}</option>`).join('')}
+    </select></div>
+    <div class="field"><label for="f-tech">Så gör du, en punkt per rad. Skriv det du ska säga mellan ** (t.ex. **Spänn bålen**)</label><textarea id="f-tech">${esc((b?.tech || []).join('\n'))}</textarea></div>
+    ${field('f-cue', 'Ljud eller markering', b?.cue, 'autocomplete="off"')}
+    <div class="field"><label for="f-note">Anteckning</label><textarea id="f-note">${esc(b?.note)}</textarea></div>
+    <div class="btn-row"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="saveBlock">Spara</button></div>
+    ${b ? '<button class="btn danger block" data-act="deleteBlock" style="margin-top:8px">Ta bort block</button>' : ''}`);
+}
+
+/* ============================================================
+   BACKUP
+   ============================================================ */
+function exportBackup() {
+  const payload = { app: 'passminne', version: VERSION, exportedAt: new Date().toISOString(), data: S.data };
+  const name = 'passminne-backup-' + todayStr() + '.json';
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  try {
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {});
+      return;
+    }
+  } catch (e) {}
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+$('#importFile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    const parsed = JSON.parse(await f.text());
+    const data = migrate(parsed);
+    if (!data.releases.length && !(parsed.releases || parsed.data)) throw new Error('fel format');
+    if (!confirm('Det här ersätter allt du har i appen nu. Vill du fortsätta?')) return;
+    S.data = data; save(); go({ name: 'home' });
+    toast('Backupen är inläst.');
+  } catch (err) { toast('Filen kunde inte läsas. Kontrollera att det är en backup från Passa dig eller Passminne.'); }
+});
+
+/* ============================================================
+   LJUDFIL
+   ============================================================ */
+$('#audioFile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const t = trk(S.view.rid, S.view.tid);
+  if (!t) return;
+  try {
+    await idb.set(t.id, f);
+    t.audioName = f.name; save(); render();
+    toast('Låten är sparad i telefonen.');
+  } catch (err) { toast('Kunde inte spara låten. Det kan bero på att telefonen har ont om utrymme.'); }
+});
+
+/* ============================================================
+   HANDLINGAR
+   ============================================================ */
+const A = {
+  back() {
+    const v = S.view;
+    if (v.name === 'quiz') return go(S.quiz.back.view);
+    if (['learn', 'cues', 'rehearse'].includes(v.name)) return go({ name: 'track', rid: v.rid, tid: v.tid });
+    if (v.name === 'track') return go({ name: 'release', rid: v.rid });
+    go({ name: 'home' });
+  },
+  closeSheet,
+  openRelease: d => go({ name: 'release', rid: d.rid }),
+  openTrack: d => go({ name: 'track', rid: S.view.rid, tid: d.tid }),
+
+  addRelease: () => { S.editRid = null; releaseForm(null); },
+  editRelease: () => { S.editRid = S.view.rid; releaseForm(rel(S.view.rid)); },
+  saveRelease() {
+    const name = val('f-name');
+    if (!name) return toast('Skriv ett releasenummer.');
+    const launchDate = val('f-launch');
+    let r = S.editRid && rel(S.editRid);
+    if (r) { r.name = name; r.launchDate = launchDate; }
+    else { r = { id: uid(), name, launchDate, tracks: [] }; S.data.releases.push(r); }
+    save(); closeSheet(); go({ name: 'release', rid: r.id });
+  },
+  deleteRelease() {
+    const r = rel(S.editRid);
+    if (!r || !confirm(`Ta bort ${r.name} med alla spår och block? Det går inte att ångra.`)) return;
+    r.tracks.forEach(t => idb.del(t.id).catch(() => {}));
+    S.data.releases = S.data.releases.filter(x => x !== r);
+    save(); closeSheet(); go({ name: 'home' });
+  },
+
+  addTrack: () => { S.editTid = null; trackForm(null); },
+  editTrack: () => { S.editTid = S.view.tid; trackForm(trk(S.view.rid, S.view.tid)); },
+  saveTrack() {
+    const name = val('f-name');
+    if (!name) return toast('Skriv ett namn på spåret.');
+    const r = rel(S.view.rid);
+    let t = S.editTid && trk(r.id, S.editTid);
+    if (t) t.name = name;
+    else { t = newTrack(name); r.tracks.push(t); }
+    save(); closeSheet(); go({ name: 'track', rid: r.id, tid: t.id });
+  },
+  deleteTrack() {
+    const r = rel(S.view.rid), t = trk(r.id, S.editTid);
+    if (!t || !confirm(`Ta bort ${t.name} med alla block? Det går inte att ångra.`)) return;
+    idb.del(t.id).catch(() => {});
+    r.tracks = r.tracks.filter(x => x !== t);
+    save(); closeSheet(); go({ name: 'release', rid: r.id });
+  },
+
+  addBlock: () => blockForm(null),
+  editBlock: d => blockForm(trk(S.view.rid, S.view.tid).blocks.find(b => b.id === d.bid)),
+  saveBlock() {
+    const time = parseTime(val('f-time'));
+    if (time === null) return toast('Skriv tiden som minuter:sekunder, till exempel 1:45.');
+    const t = trk(S.view.rid, S.view.tid);
+    let b = S.editBid && t.blocks.find(x => x.id === S.editBid);
+    if (!b) { b = newBlock(); t.blocks.push(b); }
+    const lines = id => val(id).split('\n').map(s => s.trim()).filter(Boolean);
+    const steps = lines('f-steps').map(l => { const m = l.match(/^(.*?)\s*\|\s*([\d½.]+)\s*$/); return m ? { text: m[1], cts: m[2] } : { text: l, cts: '' }; });
+    Object.assign(b, { time, letter: val('f-letter'), move: val('f-move'), phrase: val('f-phrase'), counts: val('f-counts'), reps: val('f-reps'), steps, spine: SPINE[val('f-spine')] ? val('f-spine') : '', tech: lines('f-tech'), cue: val('f-cue'), note: val('f-note') });
+    learnLibrary([{ blocks: [b] }]);
+    sortBlocks(t); save(); closeSheet(); render();
+  },
+  deleteBlock() {
+    const t = trk(S.view.rid, S.view.tid);
+    if (!confirm('Ta bort blocket?')) return;
+    t.blocks = t.blocks.filter(b => b.id !== S.editBid);
+    save(); closeSheet(); render();
+  },
+
+  paste() {
+    openSheet(`<h2>Klistra in</h2>
+      <p class="help">Klistra in text från noterna. Varje spår börjar med #. Varje block är en rad som börjar med tiden, och delarna skiljs åt med |.</p>
+      <div class="example"># Spår 1 · Låtnamn
+0:00 | 8 cts x 4 | Rörelse | ljud: markering
+0:32 | 4 cts x 8 | Nästa rörelse
+Rader utan tid blir anteckning på blocket ovanför.</div>
+      <div class="field"><textarea id="f-paste" placeholder="Klistra in här"></textarea></div>
+      <p class="help" id="paste-prev">Inget hittat än.</p>
+      <div class="btn-row"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="savePaste">Lägg till</button></div>`);
+  },
+  savePaste() {
+    const { tracks } = parsePaste($('#f-paste').value);
+    if (!tracks.length) return toast('Hittade inga spår eller block i texten.');
+    const r = rel(S.view.rid);
+    r.tracks.push(...tracks);
+    save(); closeSheet(); render();
+    toast(`${tracks.length} spår har lagts till.`);
+  },
+
+  toggleDone() {
+    const t = trk(S.view.rid, S.view.tid);
+    t.done = !t.done; save(); render();
+    toast(t.done ? 'Spåret är klart och tas bort från dagens förhör.' : 'Spåret är med i förhöret igen.');
+  },
+  pickPdf: () => $('#pdfFile').click(),
+  savePdf() {
+    const res = S.pdfImport;
+    if (!res) return closeSheet();
+    const name = val('f-name');
+    if (!name) return toast('Skriv ett releasenummer.');
+    document.querySelectorAll('[data-pick]').forEach(el => { res.tracks[+el.dataset.pick].inPass = el.checked; });
+    const r = { id: uid(), name, launchDate: val('f-launch'), tracks: res.tracks };
+    S.data.releases.push(r);
+    learnLibrary(r.tracks);
+    S.pdfImport = null;
+    save(); closeSheet(); go({ name: 'release', rid: r.id });
+    toast(`${r.tracks.length} spår har lagts till.`);
+  },
+
+  pickAudio: () => $('#audioFile').click(),
+  async removeAudio() {
+    const t = trk(S.view.rid, S.view.tid);
+    if (!confirm('Ta bort låten från appen?')) return;
+    try { await idb.del(t.id); } catch (e) {}
+    t.audioName = ''; save(); render();
+  },
+
+  mode(d) {
+    const { rid, tid } = S.view;
+    const t = trk(rid, tid);
+    if (!t.blocks.length) return;
+    if (d.m === 'learn') { S.learn = { k: 1, phase: 'read', open: new Set() }; go({ name: 'learn', rid, tid }); }
+    if (d.m === 'cues') { S.cues = { level: 1, open: new Set() }; go({ name: 'cues', rid, tid }); }
+    if (d.m === 'quiz') {
+      const q = t.blocks.flatMap(b => facetsOf(b).map(f => ({ rid, tid, bid: b.id, f })));
+      S.quiz = { queue: shuffle(q), idx: 0, shown: false, done: 0, back: { label: t.name, view: { name: 'track', rid, tid } } };
+      go({ name: 'quiz', rid, tid });
+    }
+    if (d.m === 'rehearse') { S.reh = { base: 0, startedAt: 0, playing: false, hide: false, shown: false, lastI: null }; go({ name: 'rehearse', rid, tid }); }
+  },
+
+  learnRead() { S.learn.phase = 'recall'; S.learn.open = new Set(); render(); },
+  learnFlip(d) { const o = S.learn.open; o.has(d.bid) ? o.delete(d.bid) : o.add(d.bid); render(); },
+  learnMiss() { S.learn.open = new Set(); render(); toast('Läs igenom blocken en gång till och försök igen.'); },
+  learnOk() {
+    const n = trk(S.view.rid, S.view.tid).blocks.length;
+    if (S.learn.k >= n) S.learn.phase = 'done';
+    else { S.learn.k++; S.learn.phase = 'read'; }
+    render(); window.scrollTo(0, 0);
+  },
+
+  cueLevel(d) { S.cues.level = +d.l; S.cues.open = new Set(); render(); },
+  cueFlip(d) { const o = S.cues.open; o.has(d.bid) ? o.delete(d.bid) : o.add(d.bid); render(); },
+
+  // Med begränsad tid tas det du missade först, sen det som är
+  // försenat, sen nytt. Ungefär 20 sekunder per fråga.
+  quizDue() {
+    const prio = s => s.lastGrade === 0 ? 0 : s.n ? 1 : 2;
+    let q = dueItems(todayStr()).sort((a, b) => prio(a.s) - prio(b.s) || String(a.s.due || '').localeCompare(String(b.s.due || '')));
+    if (S.minutes) q = q.slice(0, S.minutes * 3);
+    q = q.map(({ rid, tid, bid, f }) => ({ rid, tid, bid, f }));
+    S.quiz = { queue: shuffle(q), idx: 0, shown: false, done: 0, back: { label: 'Mina pass', view: { name: 'home' } } };
+    go({ name: 'quiz' });
+  },
+  setMinutes(d) { S.minutes = +d.m; render(); },
+  quizShow() { S.quiz.shown = true; render(); },
+  grade(d) {
+    const Q = S.quiz, item = Q.queue[Q.idx], g = +d.g;
+    const r = rel(item.rid), b = trk(item.rid, item.tid)?.blocks.find(x => x.id === item.bid);
+    if (b && b.srs[item.f]) grade(r, b.srs[item.f], g);
+    if (g === 0) Q.queue.splice(Math.min(Q.queue.length, Q.idx + 4), 0, item); // kommer tillbaka om några kort
+    else Q.done++;
+    Q.idx++; Q.shown = false;
+    render();
+  },
+
+  async rehPlay() {
+    const R = S.reh;
+    if (R.playing) {
+      if (R.audio) R.audio.pause(); else R.base = rehTime();
+      R.playing = false; releaseWake();
+    } else {
+      const t = trk(S.view.rid, S.view.tid);
+      if (rehTime() >= rehDuration(t) - 0.2) rehSet(0);
+      if (R.audio) { try { await R.audio.play(); } catch (e) { return toast('Låten kunde inte spelas.'); } }
+      else R.startedAt = performance.now();
+      R.playing = true; wake();
+    }
+    updatePlayBtn(); rehTick();
+  },
+  rehSeek: d => rehSet(rehTime() + +d.s),
+  rehRestart: () => rehSet(0),
+  rehReveal() { if (S.reh.hide) { S.reh.shown = !S.reh.shown; rehTick(); } },
+
+  exportBackup,
+  importBackup: () => $('#importFile').click()
+};
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  const f = A[el.dataset.act];
+  if (f) f(el.dataset, el, e);
+});
+document.addEventListener('input', e => { if (e.target.id === 'f-paste') pastePreview(); });
+document.addEventListener('change', e => {
+  if (e.target.id === 'rh-hide') { S.reh.hide = e.target.checked; S.reh.shown = false; rehTick(); }
+  if (e.target.dataset.pass) {
+    const t = trk(S.view.rid, e.target.dataset.pass);
+    if (t) { t.inPass = e.target.checked; save(); render(); }
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.reh && S.reh.playing) wake();
+});
+
+render();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
