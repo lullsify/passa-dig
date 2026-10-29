@@ -129,6 +129,9 @@
     .tech > span::before { content: '•'; position: absolute; left: 0; }
     .tech b { font-weight: 600; color: var(--text); }
     .breath { color: var(--accent); font-weight: 600; }
+    .via { font-size: 14px; color: var(--muted); padding: 6px 14px; }
+    .via .time { font-variant-numeric: tabular-nums; color: var(--accent); margin-right: 6px; }
+    .row > .dot { margin-left: -2px; }
     .sublabel { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 10px; }
     .spine { display: inline-block; font-size: 13px; background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 2px 8px; margin-top: 6px; }
 
@@ -302,7 +305,7 @@ function migrateLibrary(lib) {
 function newSrs() { return { n: 0, interval: 0, ease: 2.5, due: null, lastGrade: null }; }
 function newFacets() { return { move: newSrs(), reps: newSrs(), say: newSrs(), spine: newSrs() }; }
 function newBlock() { return { id: uid(), time: 0, letter: '', move: '', phrase: '', counts: '', reps: '', steps: [], tech: [], spine: '', cue: '', note: '', srs: newFacets() }; }
-function newTrack(name) { return { id: uid(), num: '', name, song: '', intro: '', inPass: true, done: false, audioName: '', blocks: [] }; }
+function newTrack(name) { return { id: uid(), num: '', name, song: '', intro: '', inPass: true, done: false, srs: newSrs(), audioName: '', blocks: [] }; }
 function sortBlocks(t) { t.blocks.sort((a, b) => a.time - b.time); }
 
 function migrateSrs(old) {
@@ -328,6 +331,7 @@ function migrate(d) {
         intro: String(t.intro || ''),
         inPass: t.inPass !== false,
         done: !!t.done,
+        srs: Object.assign(newSrs(), t.srs && typeof t.srs === 'object' ? t.srs : {}),
         audioName: String(t.audioName || ''),
         blocks: []
       };
@@ -365,21 +369,15 @@ function save() {
   catch (e) { toast('Kunde inte spara. Exportera en backup för säkerhets skull.'); }
 }
 
-const S = { data: load(), view: { name: 'home' }, minutes: 15 };
+const S = { data: load(), view: { name: 'home' } };
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 
 const rel = rid => S.data.releases.find(r => r.id === rid);
 const trk = (rid, tid) => rel(rid)?.tracks.find(t => t.id === tid);
-function passBlocks() {
-  const out = [];
-  S.data.releases.forEach(r => r.tracks.forEach(t => { if (t.inPass && !t.done) t.blocks.forEach(b => out.push({ r, t, b })); }));
-  return out;
-}
-
 /* ============================================================
-   BLOCKETS DELAR
-   Varje block förhörs i upp till fyra delar: vad du byter till,
-   antal reps, det du måste säga (fetstil i noterna) och ryggläge.
+   BLOCK OCH ÖVNINGAR
+   Ett spår tränas som en kedja i ordning. Övergångar och
+   uppställningar är inte egna steg, de följer med övningen efter.
    Reps räknas fram ur frasen och delrörelsernas counts, så att
    siffran får en förklaring i stället för att bara nötas in.
    ============================================================ */
@@ -407,15 +405,17 @@ function libFor(b, ok = () => true) {
 function techOf(b) { return b.tech.length ? b.tech : (libFor(b, e => e.tech.length)?.tech || []); }
 function spineOf(b) { return b.spine || libFor(b, e => e.spine)?.spine || ''; }
 function sayLines(b) { return techOf(b).filter(l => l.includes('**')); }
-// Övergångar och uppställningar förhörs inte, de visas i stället
-// som en del av bytet till nästa riktiga övning.
-function facetsOf(b) {
-  if (NOT_EXERCISE.test(b.move)) return [];
-  const f = ['move'];
-  if (repsNum(b)) f.push('reps');
-  if (sayLines(b).length) f.push('say');
-  if (spineOf(b)) f.push('spine');
-  return f;
+// Spåret som en lista av övningar. via är övergångarna före
+// övningen, after är det som ligger efter sista övningen.
+function units(t) {
+  const out = [];
+  let via = [];
+  t.blocks.forEach(b => {
+    if (NOT_EXERCISE.test(b.move)) via.push(b);
+    else { out.push({ b, via, after: [] }); via = []; }
+  });
+  if (via.length && out.length) out[out.length - 1].after = via;
+  return out;
 }
 function learnLibrary(tracks) {
   tracks.forEach(t => t.blocks.forEach(b => {
@@ -449,10 +449,11 @@ function breathHtml(html) { return html.replace(/\b(andas in|andas ut|inhale|exh
 function techHtml(line) { return breathHtml(esc(line).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')); }
 
 /* ============================================================
-   UTSPRIDD REPETITION
-   Kunde inte: tillbaka idag. Osäker: lite längre. Kunde: 1, 3,
-   sen gånger "ease". Före lansering kapas intervallet så att
-   varje del hinner repeteras flera gånger innan premiären.
+   UTSPRIDD REPETITION, PER SPÅR
+   Efter en genomgång i ordning: kunde allt ger längre intervall,
+   några missar ger lite längre, många missar ger tillbaka i morgon.
+   Före lansering kapas intervallet så att varje spår hinner
+   repeteras flera gånger innan premiären.
    ============================================================ */
 function isDue(s, today) { return !s.due || s.due <= today; }
 function srsStatus(s) {
@@ -460,17 +461,12 @@ function srsStatus(s) {
   if (s.interval >= 7 && s.lastGrade === 2) return 'good';
   return 'mid';
 }
-function blockStatus(b) {
-  const st = facetsOf(b).map(f => srsStatus(b.srs[f]));
-  if (!st.length) return 'none';
-  return st.includes('bad') ? 'bad' : st.includes('mid') ? 'mid' : 'good';
-}
 const STATUS_LABEL = { good: 'Sitter', mid: 'Nästan', bad: 'Behöver övas' };
 
-function dueItems(today) {
+function dueTracks(today) {
   const out = [];
-  passBlocks().forEach(({ r, t, b }) => facetsOf(b).forEach(f => {
-    if (isDue(b.srs[f], today)) out.push({ rid: r.id, tid: t.id, bid: b.id, f, s: b.srs[f] });
+  S.data.releases.forEach(r => r.tracks.forEach(t => {
+    if (t.inPass && !t.done && units(t).length && isDue(t.srs, today)) out.push({ r, t });
   }));
   return out;
 }
@@ -490,12 +486,12 @@ function grade(r, s, g) {
   save();
 }
 
-function statusBar(blocks) {
-  blocks = blocks.filter(b => blockStatus(b) !== 'none');
-  if (!blocks.length) return '<div class="bar"></div>';
+function statusBar(tracks) {
+  tracks = tracks.filter(t => t.inPass && units(t).length);
+  if (!tracks.length) return '<div class="bar"></div>';
   const c = { good: 0, mid: 0, bad: 0 };
-  blocks.forEach(b => c[blockStatus(b)]++);
-  return '<div class="bar">' + ['good', 'mid', 'bad'].map(k => c[k] ? `<span class="s-${k}" style="width:${c[k] / blocks.length * 100}%"></span>` : '').join('') + '</div>';
+  tracks.forEach(t => c[srsStatus(t.srs)]++);
+  return '<div class="bar">' + ['good', 'mid', 'bad'].map(k => c[k] ? `<span class="s-${k}" style="width:${c[k] / tracks.length * 100}%"></span>` : '').join('') + '</div>';
 }
 function legend() {
   return `<div class="legend">${['good', 'mid', 'bad'].map(k => `<span><i class="dot s-${k}"></i>${STATUS_LABEL[k]}</span>`).join('')}</div>`;
@@ -547,7 +543,7 @@ function header(title, back, right = '') {
 }
 function render() {
   const v = S.view;
-  const views = { home: vHome, release: vRelease, track: vTrack, learn: vLearn, cues: vCues, quiz: vQuiz, rehearse: vRehearse };
+  const views = { home: vHome, release: vRelease, track: vTrack, learn: vLearn, practice: vPractice, rehearse: vRehearse };
   if (v.rid && !rel(v.rid)) S.view = { name: 'home' };
   if (v.tid && !trk(v.rid, v.tid)) S.view = v.rid && rel(v.rid) ? { name: 'release', rid: v.rid } : { name: 'home' };
   $('#app').innerHTML = (views[S.view.name] || vHome)();
@@ -591,7 +587,6 @@ function detailHtml(b) {
     (b.note ? `<span class="note" style="display:block">${esc(b.note)}</span>` : '');
 }
 function blockHtml(b, opts = {}) {
-  const st = blockStatus(b);
   const act = opts.act ? `data-act="${opts.act}" data-bid="${b.id}"` : '';
   const meta = metaStr(b);
   return `<button class="blk ${opts.cls || ''}" ${act}>
@@ -602,8 +597,12 @@ function blockHtml(b, opts = {}) {
       ${opts.hideMeta || !b.cue ? '' : `<span class="cue" style="display:block">♪ ${esc(b.cue)}</span>`}
       ${opts.showNote ? detailHtml(b) : ''}
     </span>
-    ${opts.dot === false || st === 'none' ? '' : `<i class="dot s-${st}" title="${STATUS_LABEL[st]}"></i>`}
   </button>`;
+}
+const viaHtml = list => list.map(v => `<div class="via"><span class="time">${fmtTime(v.time)}</span> ${esc(v.move)}${v.phrase ? ' · ' + esc(v.phrase) : ''}</div>`).join('');
+// En övning med allt samlat: övergången före, övningen och det som följer efter.
+function unitHtml(u, cls = '') {
+  return viaHtml(u.via) + blockHtml(u.b, { showNote: true, cls }) + viaHtml(u.after);
 }
 
 /* ---------- Startsida ---------- */
@@ -615,24 +614,23 @@ function vHome() {
     return `<div class="empty"><p>Du har inga pass än. Lägg till din första release för att börja.</p>
       <div class="btn-row"><button class="btn primary" data-act="pickPdf">Läs in release</button><button class="btn" data-act="addRelease">Lägg till release</button></div></div>` + backupSection();
   }
-  const due = dueItems(t).length;
-  const mins = [[5, '5 min'], [15, '15 min'], [30, '30 min'], [0, 'Allt']];
-  let h = `<section class="card">
-    <div class="today">
-      <div class="today-num">${due}</div>
-      <div class="grow">${due ? `Idag: ${due} frågor att repetera` : 'Inget att repetera idag.'}</div>
-    </div>
-    ${due ? `<p class="small muted" style="margin:14px 0 8px">Hur mycket tid har du idag?</p>
-      <div class="seg">${mins.map(([m, l]) => `<button class="${S.minutes === m ? 'on' : ''}" data-act="setMinutes" data-m="${m}">${l}</button>`).join('')}</div>
-      <button class="btn primary block" data-act="quizDue">Starta förhör</button>` : ''}
-  </section>`;
+  // Spår som aldrig övats först, sen det som gick sämst förra gången.
+  const due = dueTracks(t).sort((a, b) => (a.t.srs.n ? 1 : 0) - (b.t.srs.n ? 1 : 0) || (a.t.srs.lastGrade ?? -1) - (b.t.srs.lastGrade ?? -1));
+  let h = `<div class="section-title" style="margin-top:8px">Idag</div>`;
+  if (!due.length) h += `<div class="card muted">Inget att repetera idag.</div>`;
+  due.forEach(({ r, t }) => {
+    const st = srsStatus(t.srs);
+    h += `<button class="row" data-act="startTrack" data-rid="${r.id}" data-tid="${t.id}">
+      <i class="dot s-${st}"></i>
+      <span class="grow"><span class="title">${esc(t.num ? t.num + ' ' + t.name : t.name)}</span><br>
+      <span class="sub">${esc(r.name)} · ${t.srs.n ? 'Öva i ordning' : 'Lär in'}</span></span><span class="chev">›</span></button>`;
+  });
   h += '<div class="section-title">Releaser</div>';
   rs.slice().sort((a, b) => (a.launchDate || '9999').localeCompare(b.launchDate || '9999')).forEach(r => {
-    const blocks = r.tracks.flatMap(x => x.blocks);
     h += `<button class="row" data-act="openRelease" data-rid="${r.id}">
       <span class="grow"><span class="title">${esc(r.name)}</span><br>
       <span class="sub">${esc(launchLabel(r))} · ${r.tracks.length} spår</span>
-      ${statusBar(blocks)}</span><span class="chev">›</span></button>`;
+      ${statusBar(r.tracks)}</span><span class="chev">›</span></button>`;
   });
   h += `<div class="btn-row" style="margin-top:4px"><button class="btn" data-act="pickPdf">Läs in release</button><button class="btn" data-act="addRelease">Lägg till release</button></div>`;
   return h + backupSection();
@@ -654,9 +652,9 @@ function vRelease() {
   } else {
     const row = t => `<div class="trow">
       <button class="row" data-act="openTrack" data-tid="${t.id}">
+        <i class="dot s-${srsStatus(t.srs)}"></i>
         <span class="grow"><span class="title">${esc(t.num ? t.num + ' ' + t.name : t.name)}</span><br>
-        <span class="sub">${[t.done && 'Klar', t.song, t.blocks.length + ' block', t.audioName && '♪ låt tillagd'].filter(Boolean).map(esc).join(' · ')}</span>
-        ${statusBar(t.blocks)}</span></button>
+        <span class="sub">${[t.done && 'Klar', t.song, units(t).length + ' övningar', t.audioName && '♪ låt tillagd'].filter(Boolean).map(esc).join(' · ')}</span></span></button>
       <label class="switch"><input type="checkbox" data-pass="${t.id}" ${t.inPass ? 'checked' : ''} aria-label="Mitt pass"></label>
     </div>`;
     const inP = r.tracks.filter(t => t.inPass), rest = r.tracks.filter(t => !t.inPass);
@@ -673,12 +671,11 @@ function vRelease() {
 function vTrack() {
   const r = rel(S.view.rid), t = trk(S.view.rid, S.view.tid);
   header(t.num ? t.num + ' ' + t.name : t.name, r.name, `<button class="hbtn" data-act="editTrack">Ändra</button>`);
-  const none = t.blocks.length ? '' : 'disabled';
+  const none = units(t).length ? '' : 'disabled';
   let h = `<div class="modes">
-    <button class="mode" data-act="mode" data-m="learn" ${none}><b>Lär in</b><span>Ett block i taget, sen hela kedjan</span></button>
-    <button class="mode" data-act="mode" data-m="cues" ${none}><b>Ledtrådar</b><span>Bara första bokstäverna</span></button>
-    <button class="mode" data-act="mode" data-m="quiz" ${none}><b>Förhör</b><span>Testa dig själv i blandad ordning</span></button>
-    <button class="mode" data-act="mode" data-m="rehearse" ${none}><b>Mental genomgång</b><span>Följ med i musiken</span></button>
+    <button class="mode" data-act="mode" data-m="learn" ${none}><b>Lär in</b><span>Ett block i taget med allt samlat</span></button>
+    <button class="mode" data-act="mode" data-m="practice" ${none}><b>Öva i ordning</b><span>Säg nästa block, sen visar du svaret</span></button>
+    <button class="mode" data-act="mode" data-m="rehearse" ${none} style="grid-column:1 / -1"><b>Med musiken</b><span>Säg nästa block innan det börjar</span></button>
   </div>`;
   h += `<div class="row" style="margin-top:10px"><span class="grow"><span class="title">Låt</span><br><span class="sub">${t.audioName ? esc(t.audioName) : 'Ingen låt tillagd'}</span></span>
     <button class="linkbtn" data-act="pickAudio">${t.audioName ? 'Byt' : 'Lägg till'}</button>
@@ -689,114 +686,65 @@ function vTrack() {
   if (!t.blocks.length) h += `<p class="muted" style="margin:0 4px 12px">Inga block än.</p>`;
   t.blocks.forEach(b => h += blockHtml(b, { act: 'editBlock', showNote: true }));
   h += `<button class="btn block" data-act="addBlock" style="margin-top:8px">Lägg till block</button>`;
-  if (t.blocks.length) h += legend();
   return h;
 }
 
-/* ---------- Lär in (kedjeinlärning) ---------- */
+/* ---------- Lär in (ett block i taget, i ordning) ---------- */
 function vLearn() {
   const t = trk(S.view.rid, S.view.tid);
   header('Lär in', t.name);
-  const L = S.learn, n = t.blocks.length;
-  if (L.phase === 'done') {
-    return `<div class="card"><p><b>Du har gått igenom hela spåret.</b></p><p class="muted">Nästa steg är Ledtrådar eller Förhör. I morgon kan du köra Lär in igen och se hur mycket som sitter kvar.</p>
-      <div class="btn-row"><button class="btn" data-act="mode" data-m="cues">Ledtrådar</button><button class="btn primary" data-act="mode" data-m="quiz">Förhör</button></div></div>`;
+  const U = units(t), L = S.learn;
+  if (L.k >= U.length) {
+    return `<div class="card"><p><b>Du har gått igenom hela spåret.</b></p><p class="muted">Nästa steg är Öva i ordning.</p>
+      <div class="btn-row"><button class="btn" data-act="learnStep" data-d="-1">Föregående</button><button class="btn primary" data-act="mode" data-m="practice">Öva i ordning</button></div></div>`;
   }
-  if (L.phase === 'read') {
-    const b = t.blocks[L.k - 1];
-    return `<div class="progress">Nytt block: ${L.k} av ${n}</div>
-      <p class="muted small" style="margin:0 4px 10px">Läs blocket och säg det högt. Sen döljs det.</p>
-      ${blockHtml(b, { dot: false, showNote: true, cls: 'current' })}
-      <button class="btn primary block" data-act="learnRead" style="margin-top:14px">Jag har läst det</button>`;
-  }
-  let h = `<div class="progress">${L.k === 1 ? 'Block 1' : `Block 1 till ${L.k}`} av ${n}</div>
-    <p class="muted small" style="margin:0 4px 10px">Säg alla block från början. Tryck på ett block för att se om du hade rätt.</p>`;
-  t.blocks.slice(0, L.k).forEach(b => {
-    const open = L.open.has(b.id);
-    h += blockHtml(b, open ? { act: 'learnFlip', dot: false } : { act: 'learnFlip', dot: false, cls: 'masked', move: 'Vad kommer här?', hideMeta: true });
-  });
-  h += `<div class="btn-row"><button class="btn" data-act="learnMiss">Missade något</button><button class="btn primary" data-act="learnOk">Kunde alla</button></div>`;
+  const u = U[L.k], next = U[L.k + 1];
+  let h = `<div class="progress">Block ${L.k + 1} av ${U.length}</div>`;
+  if (L.k === 0 && t.intro) h += `<div class="card small" style="white-space:pre-wrap">${esc(t.intro)}</div>`;
+  h += unitHtml(u, 'current');
+  if (next) h += `<div class="reh-next" style="margin-top:12px"><div class="reh-label">Nästa block</div><div class="reh-move" style="font-size:17px">${moveHtml(next.b)}</div></div>`;
+  h += `<div class="btn-row"><button class="btn" data-act="learnStep" data-d="-1" ${L.k ? '' : 'disabled'}>Föregående</button><button class="btn primary" data-act="learnStep" data-d="1">Nästa</button></div>`;
   return h;
 }
 
-/* ---------- Ledtrådar (gradvis bortplockat stöd) ---------- */
-function initials(s) {
-  return String(s || '').split(/\s+/).filter(Boolean).map(w => {
-    const m = w.match(/[\p{L}\p{N}]/u);
-    return m ? m[0] + '…' : w;
-  }).join(' ');
-}
-function vCues() {
+/* ---------- Öva i ordning (aktiv återkallning av kedjan) ----------
+   Du ser förra övningen och säger själv nästa: namnet, hur länge
+   och det du ska säga. Sen visar du svaret. Det är samma sak som
+   du gör i klassen, så det är det som tränas. */
+function vPractice() {
   const t = trk(S.view.rid, S.view.tid);
-  header('Ledtrådar', t.name);
-  const C = S.cues;
-  const labels = ['Allt', 'Första bokstäver', 'Bara tid'];
-  let h = `<div class="seg">${labels.map((l, i) => `<button class="${C.level === i ? 'on' : ''}" data-act="cueLevel" data-l="${i}">${l}</button>`).join('')}</div>
-    <p class="muted small" style="margin:0 4px 10px">Tryck på ett block för att visa det.</p>`;
-  t.blocks.forEach(b => {
-    if (C.level === 0 || C.open.has(b.id)) h += blockHtml(b, { act: 'cueFlip', showNote: C.open.has(b.id) });
-    else if (C.level === 1) h += blockHtml(b, { act: 'cueFlip', cls: 'masked', move: esc(initials(b.move)) });
-    else h += blockHtml(b, { act: 'cueFlip', cls: 'masked', move: 'Vad kommer här?', hideMeta: true });
-  });
-  return h;
-}
-
-/* ---------- Förhör (aktiv återkallning) ---------- */
-function vQuiz() {
-  const Q = S.quiz;
-  header('Förhör', Q.back.label);
-  if (Q.idx >= Q.queue.length) {
-    return `<div class="card"><p><b>Klart för idag.</b></p><p class="muted">Du gick igenom ${Q.done} frågor. Det du inte kunde kommer tillbaka snart, det du kunde kommer glesare.</p>
-      <button class="btn primary block" data-act="back" style="margin-top:14px">Tillbaka</button></div>`;
+  header('Öva i ordning', t.name);
+  const U = units(t), P = S.prac;
+  if (P.k >= U.length) {
+    const missed = P.missed.map(k => U[k]).filter(Boolean);
+    return `<div class="card"><p><b>Du kunde ${U.length - missed.length} av ${U.length} block.</b></p>
+      ${missed.length ? `<p class="muted" style="margin-top:10px">Titta extra på:</p>${missed.map(u => `<div class="via" style="margin-top:4px"><span class="time">${fmtTime(u.b.time)}</span> ${moveHtml(u.b)}</div>`).join('')}` : ''}
+      <div class="btn-row"><button class="btn" data-act="back">Tillbaka</button><button class="btn primary" data-act="mode" data-m="practice">Öva igen</button></div></div>`;
   }
-  const item = Q.queue[Q.idx];
-  const r = rel(item.rid), t = trk(item.rid, item.tid), b = t && t.blocks.find(x => x.id === item.bid);
-  if (!b || !facetsOf(b).includes(item.f)) { Q.idx++; return vQuiz(); }
-  // Förra riktiga övningen, och övergångarna som ligger emellan.
-  const i = t.blocks.indexOf(b), via = [];
-  let j = i - 1;
-  while (j >= 0 && NOT_EXERCISE.test(t.blocks[j].move)) via.unshift(t.blocks[j--]);
-  const prev = t.blocks[j];
-  const tname = t.num ? t.num + ' ' + t.name : t.name;
-  let ask, answer;
-  if (item.f === 'move') {
-    ask = prev
-      ? `<div class="quiz-time">${fmtTime(prev.time)}</div><div class="quiz-ctx">${moveHtml(prev)}</div><div class="quiz-q" style="margin-top:10px">Vad byter du till efter det här?</div>`
-      : `<div class="quiz-q">Vad är första övningen?</div>`;
-    answer = via.map(v => `<div class="meta">${fmtTime(v.time)} · ${esc(v.move)}</div>`).join('') +
-      `<div class="move" style="margin-top:${via.length ? 8 : 0}px">${moveHtml(b)}</div><div class="meta">Byte vid ${fmtTime(b.time)}${metaStr(b) ? ' · ' + esc(metaStr(b)) : ''}</div>${stepsHtml(b)}`;
-  } else if (item.f === 'reps') {
-    ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Hur många reps?</div>`;
-    const why = repsWhy(b);
-    answer = `<div class="move">${repsNum(b)} reps</div>${why ? `<div class="why">${esc(why)}</div>` : ''}${stepsHtml(b)}`;
-  } else if (item.f === 'say') {
-    ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Vad ska du säga här? Säg det högt innan du visar svaret.</div>`;
-    answer = `<span class="sublabel" style="margin-top:0">Det här ska du säga</span>${techListHtml(sayLines(b))}`;
-  } else {
-    ask = `<div class="quiz-time">${fmtTime(b.time)}</div><div class="quiz-ctx">${moveHtml(b)}</div><div class="quiz-q" style="margin-top:10px">Vilket ryggläge?</div>`;
-    answer = `<div class="move">${esc(SPINE[spineOf(b)])}</div>`;
-  }
-  let h = `<div class="progress">${Q.idx + 1} av ${Q.queue.length}</div>
+  const u = U[P.k], prev = U[P.k - 1];
+  let h = `<div class="progress">Block ${P.k + 1} av ${U.length}</div>
     <div class="quiz-card">
-      <div class="quiz-track">${esc(r.name)} · ${esc(tname)}</div>
-      ${ask}`;
-  if (Q.shown) h += `<div class="quiz-answer">${answer}</div>`;
-  h += '</div>';
-  h += Q.shown
-    ? `<div class="grades"><button class="btn g0" data-act="grade" data-g="0">Kunde inte</button><button class="btn g1" data-act="grade" data-g="1">Osäker</button><button class="btn g2" data-act="grade" data-g="2">Kunde</button></div>`
-    : `<button class="btn primary block" data-act="quizShow" style="margin-top:14px">Visa svar</button>`;
+      ${prev ? `<div class="quiz-time">${fmtTime(prev.b.time)}</div><div class="quiz-ctx">${moveHtml(prev.b)}</div>` : '<div class="quiz-ctx">Spåret börjar</div>'}
+      <div class="quiz-q" style="margin-top:12px">Vad kommer sen? Säg namnet, hur länge och det du ska säga.</div>
+    </div>`;
+  if (P.shown) {
+    h += `<div style="margin-top:12px">${unitHtml(u, 'current')}</div>
+      <div class="btn-row"><button class="btn" data-act="pracGrade" data-ok="0">Missade något</button><button class="btn primary" data-act="pracGrade" data-ok="1">Kunde</button></div>`;
+  } else {
+    h += `<button class="btn primary block" data-act="pracShow" style="margin-top:14px">Visa svar</button>`;
+  }
   return h;
 }
 
 /* ---------- Mental genomgång ---------- */
 function vRehearse() {
   const t = trk(S.view.rid, S.view.tid);
-  header('Mental genomgång', t.name);
+  header('Med musiken', t.name);
   const R = S.reh;
   return `<div class="reh-clock"><b id="rh-time">0:00</b><span id="rh-total"></span></div>
     <div class="reh-bar"><span id="rh-bar"></span></div>
     <button class="reh-now" data-act="rehReveal"><span class="reh-label" id="rh-now-label">Nu</span><span id="rh-now"></span></button>
-    <div class="reh-next"><div class="reh-label" id="rh-next-label"></div><div id="rh-next"></div></div>
+    <button class="reh-next" data-act="rehRevealNext" style="display:block;width:100%;text-align:left"><div class="reh-label" id="rh-next-label"></div><div id="rh-next"></div></button>
     <div class="controls">
       <button class="btn" data-act="rehSeek" data-s="-10">−10 s</button>
       <button class="btn primary" data-act="rehPlay" id="rh-play">Starta</button>
@@ -866,7 +814,7 @@ function rehTick() {
   if (!R.audio && R.playing && now >= dur) { R.base = dur; R.playing = false; updatePlayBtn(); releaseWake(); }
   let i = -1;
   t.blocks.forEach((b, k) => { if (b.time <= now) i = k; });
-  if (i !== R.lastI) { R.lastI = i; R.shown = false; }
+  if (i !== R.lastI) { R.lastI = i; R.shown = false; R.shownNext = false; }
   const cur = t.blocks[i], next = t.blocks[i + 1];
   $('#rh-time').textContent = fmtTime(now);
   $('#rh-total').textContent = 'av ' + fmtTime(dur);
@@ -889,7 +837,7 @@ function rehTick() {
   if (next) {
     const s = Math.max(0, Math.ceil(next.time - now));
     $('#rh-next-label').textContent = `Om ${s} s`;
-    $('#rh-next').innerHTML = R.hide ? '<div class="reh-meta">Nästa block</div>' : body(next, false);
+    $('#rh-next').innerHTML = R.hide && !R.shownNext ? '<div class="reh-meta">Säg nästa block, tryck sen för att se om du hade rätt</div>' : body(next, R.hide);
   } else {
     $('#rh-next-label').textContent = 'Sista blocket';
     $('#rh-next').innerHTML = '';
@@ -1328,8 +1276,7 @@ $('#audioFile').addEventListener('change', async e => {
 const A = {
   back() {
     const v = S.view;
-    if (v.name === 'quiz') return go(S.quiz.back.view);
-    if (['learn', 'cues', 'rehearse'].includes(v.name)) return go({ name: 'track', rid: v.rid, tid: v.tid });
+    if (['learn', 'practice', 'rehearse'].includes(v.name)) return go({ name: 'track', rid: v.rid, tid: v.tid });
     if (v.name === 'track') return go({ name: 'release', rid: v.rid });
     go({ name: 'home' });
   },
@@ -1447,50 +1394,34 @@ Rader utan tid blir anteckning på blocket ovanför.</div>
   mode(d) {
     const { rid, tid } = S.view;
     const t = trk(rid, tid);
-    if (!t.blocks.length) return;
-    if (d.m === 'learn') { S.learn = { k: 1, phase: 'read', open: new Set() }; go({ name: 'learn', rid, tid }); }
-    if (d.m === 'cues') { S.cues = { level: 1, open: new Set() }; go({ name: 'cues', rid, tid }); }
-    if (d.m === 'quiz') {
-      const q = t.blocks.flatMap(b => facetsOf(b).map(f => ({ rid, tid, bid: b.id, f })));
-      S.quiz = { queue: shuffle(q), idx: 0, shown: false, done: 0, back: { label: t.name, view: { name: 'track', rid, tid } } };
-      go({ name: 'quiz', rid, tid });
-    }
-    if (d.m === 'rehearse') { S.reh = { base: 0, startedAt: 0, playing: false, hide: false, shown: false, lastI: null }; go({ name: 'rehearse', rid, tid }); }
+    if (!units(t).length) return;
+    if (d.m === 'learn') { S.learn = { k: 0 }; go({ name: 'learn', rid, tid }); }
+    if (d.m === 'practice') { S.prac = { k: 0, shown: false, missed: [] }; go({ name: 'practice', rid, tid }); }
+    if (d.m === 'rehearse') { S.reh = { base: 0, startedAt: 0, playing: false, hide: true, shown: false, shownNext: false, lastI: null }; go({ name: 'rehearse', rid, tid }); }
+  },
+  // Från startsidan: aldrig övat börjar med Lär in, annars Öva i ordning.
+  startTrack(d) {
+    S.view = { name: 'track', rid: d.rid, tid: d.tid };
+    A.mode({ m: trk(d.rid, d.tid).srs.n ? 'practice' : 'learn' });
   },
 
-  learnRead() { S.learn.phase = 'recall'; S.learn.open = new Set(); render(); },
-  learnFlip(d) { const o = S.learn.open; o.has(d.bid) ? o.delete(d.bid) : o.add(d.bid); render(); },
-  learnMiss() { S.learn.open = new Set(); render(); toast('Läs igenom blocken en gång till och försök igen.'); },
-  learnOk() {
-    const n = trk(S.view.rid, S.view.tid).blocks.length;
-    if (S.learn.k >= n) S.learn.phase = 'done';
-    else { S.learn.k++; S.learn.phase = 'read'; }
+  learnStep(d) {
+    S.learn.k = Math.max(0, S.learn.k + +d.d);
     render(); window.scrollTo(0, 0);
   },
 
-  cueLevel(d) { S.cues.level = +d.l; S.cues.open = new Set(); render(); },
-  cueFlip(d) { const o = S.cues.open; o.has(d.bid) ? o.delete(d.bid) : o.add(d.bid); render(); },
-
-  // Med begränsad tid tas det du missade först, sen det som är
-  // försenat, sen nytt. Ungefär 20 sekunder per fråga.
-  quizDue() {
-    const prio = s => s.lastGrade === 0 ? 0 : s.n ? 1 : 2;
-    let q = dueItems(todayStr()).sort((a, b) => prio(a.s) - prio(b.s) || String(a.s.due || '').localeCompare(String(b.s.due || '')));
-    if (S.minutes) q = q.slice(0, S.minutes * 3);
-    q = q.map(({ rid, tid, bid, f }) => ({ rid, tid, bid, f }));
-    S.quiz = { queue: shuffle(q), idx: 0, shown: false, done: 0, back: { label: 'Mina pass', view: { name: 'home' } } };
-    go({ name: 'quiz' });
-  },
-  setMinutes(d) { S.minutes = +d.m; render(); },
-  quizShow() { S.quiz.shown = true; render(); },
-  grade(d) {
-    const Q = S.quiz, item = Q.queue[Q.idx], g = +d.g;
-    const r = rel(item.rid), b = trk(item.rid, item.tid)?.blocks.find(x => x.id === item.bid);
-    if (b && b.srs[item.f]) grade(r, b.srs[item.f], g);
-    if (g === 0) Q.queue.splice(Math.min(Q.queue.length, Q.idx + 4), 0, item); // kommer tillbaka om några kort
-    else Q.done++;
-    Q.idx++; Q.shown = false;
-    render();
+  pracShow() { S.prac.shown = true; render(); },
+  // Hela genomgången betygsätts när spåret är slut: inga missar ger
+  // Kunde, högst var femte block missat ger Osäker, fler ger Kunde inte.
+  pracGrade(d) {
+    const P = S.prac, U = units(trk(S.view.rid, S.view.tid));
+    if (d.ok === '0') P.missed.push(P.k);
+    P.k++; P.shown = false;
+    if (P.k >= U.length) {
+      const m = P.missed.length, g = m === 0 ? 2 : m / U.length <= 0.2 ? 1 : 0;
+      grade(rel(S.view.rid), trk(S.view.rid, S.view.tid).srs, g);
+    }
+    render(); window.scrollTo(0, 0);
   },
 
   async rehPlay() {
@@ -1510,6 +1441,7 @@ Rader utan tid blir anteckning på blocket ovanför.</div>
   rehSeek: d => rehSet(rehTime() + +d.s),
   rehRestart: () => rehSet(0),
   rehReveal() { if (S.reh.hide) { S.reh.shown = !S.reh.shown; rehTick(); } },
+  rehRevealNext() { if (S.reh.hide) { S.reh.shownNext = !S.reh.shownNext; rehTick(); } },
 
   exportBackup,
   importBackup: () => $('#importFile').click()
