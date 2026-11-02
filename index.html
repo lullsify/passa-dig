@@ -636,7 +636,14 @@ function vHome() {
   return h + backupSection();
 }
 function backupSection() {
-  return `<div class="section-title">Backup</div>
+  const key = getApiKey();
+  return `<div class="section-title">Översättning</div>
+    <div class="card small muted">${key
+      ? 'Din Claude-nyckel är sparad i den här telefonen. PDF:er översätts till svenska när du läser in dem.'
+      : 'För att PDF:er ska bli svenska behöver appen en Claude-nyckel. Den sparas bara i den här telefonen och följer inte med i backupen.'}
+      <div class="btn-row"><button class="btn" data-act="keyForm">${key ? 'Byt nyckel' : 'Lägg in nyckel'}</button>${key ? '<button class="btn" data-act="removeKey">Ta bort nyckel</button>' : ''}</div>
+    </div>
+    <div class="section-title">Backup</div>
     <div class="card small muted">Passen finns bara i den här telefonen. Exportera en backup då och då och spara den i Filer. Låtarna följer inte med i backupen.
       <div class="btn-row"><button class="btn" data-act="exportBackup">Exportera backup</button><button class="btn" data-act="importBackup">Importera backup</button></div>
     </div>`;
@@ -675,7 +682,7 @@ function vTrack() {
   let h = `<div class="modes">
     <button class="mode" data-act="mode" data-m="learn" ${none}><b>Lär in</b><span>Ett block i taget med allt samlat</span></button>
     <button class="mode" data-act="mode" data-m="practice" ${none}><b>Öva i ordning</b><span>Säg nästa block, sen visar du svaret</span></button>
-    <button class="mode" data-act="mode" data-m="rehearse" ${none} style="grid-column:1 / -1"><b>Med musiken</b><span>Säg nästa block innan det börjar</span></button>
+    <button class="mode" data-act="mode" data-m="rehearse" ${none} style="grid-column:1 / -1"><b>Lyssna och gör</b><span>Musiken spelar och appen pratar till dig</span></button>
   </div>`;
   h += `<div class="row" style="margin-top:10px"><span class="grow"><span class="title">Låt</span><br><span class="sub">${t.audioName ? esc(t.audioName) : 'Ingen låt tillagd'}</span></span>
     <button class="linkbtn" data-act="pickAudio">${t.audioName ? 'Byt' : 'Lägg till'}</button>
@@ -736,12 +743,19 @@ function vPractice() {
   return h;
 }
 
-/* ---------- Mental genomgång ---------- */
+/* ---------- Lyssna och gör (med musiken) ----------
+   Telefonen ligger på golvet, musiken spelar och appen pratar.
+   Stödet trappas ner i tre steg (fading):
+   0 Följ med: appen säger namnet före blocket och cuesen när det börjar.
+   1 Säg själv: appen säger namnet, du säger cuesen, sen kommer facit.
+   2 Helt själv: bara musik, du trycker när du tappar bort dig. */
+const STAGES = ['Följ med', 'Säg själv', 'Helt själv'];
 function vRehearse() {
   const t = trk(S.view.rid, S.view.tid);
-  header('Med musiken', t.name);
+  header('Lyssna och gör', t.name);
   const R = S.reh;
-  return `<div class="reh-clock"><b id="rh-time">0:00</b><span id="rh-total"></span></div>
+  return `<div class="seg">${STAGES.map((l, i) => `<button class="${R.stage === i ? 'on' : ''}" data-act="rehStage" data-s="${i}">${l}</button>`).join('')}</div>
+    <div class="reh-clock"><b id="rh-time">0:00</b><span id="rh-total"></span></div>
     <div class="reh-bar"><span id="rh-bar"></span></div>
     <button class="reh-now" data-act="rehReveal"><span class="reh-label" id="rh-now-label">Nu</span><span id="rh-now"></span></button>
     <button class="reh-next" data-act="rehRevealNext" style="display:block;width:100%;text-align:left"><div class="reh-label" id="rh-next-label"></div><div id="rh-next"></div></button>
@@ -750,8 +764,8 @@ function vRehearse() {
       <button class="btn primary" data-act="rehPlay" id="rh-play">Starta</button>
       <button class="btn" data-act="rehSeek" data-s="10">+10 s</button>
     </div>
+    <button class="btn block" id="rh-lost" data-act="rehLost" style="margin-top:8px;background:var(--bad);color:#fff;${R.stage === 2 ? '' : 'display:none'}">Jag tappade bort mig</button>
     <button class="btn block" data-act="rehRestart" style="margin-top:8px">Börja om</button>
-    <label class="toggle"><input type="checkbox" id="rh-hide" ${R.hide ? 'checked' : ''}> Dölj rörelserna så att jag måste minnas dem</label>
     ${t.audioName ? '' : '<p class="muted small" style="margin-top:12px">Ingen låt tillagd. Tiden räknas ändå, så du kan starta låten någon annanstans samtidigt.</p>'}`;
 }
 
@@ -768,16 +782,54 @@ async function startRehearseView() {
         R.url = URL.createObjectURL(blob);
         R.audio = new Audio(R.url);
         R.audio.preload = 'auto';
-        R.audio.addEventListener('ended', () => { R.playing = false; updatePlayBtn(); releaseWake(); });
+        R.audio.addEventListener('ended', () => { R.playing = false; updatePlayBtn(); releaseWake(); rehFinish(); });
         R.audio.addEventListener('loadedmetadata', rehTick);
       }
     } catch (e) { toast('Kunde inte läsa in låten.'); }
   }
   rehTick();
 }
+// Svensk röst från telefonen (talsyntes, körs lokalt, inget skickas).
+function speak(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'sv-SE';
+  const v = speechSynthesis.getVoices().find(x => /^sv/i.test(x.lang));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+function hush() { try { speechSynthesis.cancel(); } catch (e) {} }
+const spokenName = b => b.move.replace(/\s*\(.*?\)/g, '');
+const spokenSay = b => sayLines(b).map(l => l.replace(/\*\*/g, '')).join('. ');
+// Vid start och när man hoppar i låten räknas allt före nu som sagt.
+function rehResetSpoken(now) {
+  const R = S.reh, t = trk(S.view.rid, S.view.tid);
+  R.said = {};
+  t.blocks.forEach((b, k) => { if (b.time - 3 < now) { R.said[k + 'n'] = true; if (b.time < now) R.said[k + 'c'] = true; } });
+}
+function rehSpeak(now) {
+  const R = S.reh, t = trk(S.view.rid, S.view.tid);
+  if (!R.playing || R.stage === 2) return;
+  t.blocks.forEach((b, k) => {
+    if (!R.said[k + 'n'] && now >= b.time - 3) { R.said[k + 'n'] = true; speak(spokenName(b)); }
+    const at = b.time + (R.stage === 1 ? 6 : 0.3);
+    if (!R.said[k + 'c'] && now >= at) { R.said[k + 'c'] = true; speak(spokenSay(b)); }
+  });
+}
+// När låten är slut i Helt själv betygsätts spåret som i Öva i ordning.
+function rehFinish() {
+  const R = S.reh;
+  if (R.stage !== 2 || R.graded) return;
+  R.graded = true;
+  const t = trk(S.view.rid, S.view.tid), n = units(t).length, m = R.lost.size;
+  grade(rel(S.view.rid), t.srs, m === 0 ? 2 : m / n <= 0.2 ? 1 : 0);
+  toast(m ? `Du tappade bort dig ${m} ${m === 1 ? 'gång' : 'gånger'}.` : 'Du klarade hela spåret själv.');
+}
+
 function stopRehearse() {
   const R = S.reh;
   if (!R) return;
+  hush();
   clearInterval(R.timer);
   if (R.audio) { R.audio.pause(); R.audio = null; }
   if (R.url) URL.revokeObjectURL(R.url);
@@ -800,6 +852,7 @@ function rehSet(sec) {
   sec = Math.max(0, Math.min(sec, rehDuration(t)));
   if (R.audio) R.audio.currentTime = sec;
   else { R.base = sec; R.startedAt = performance.now(); }
+  hush(); rehResetSpoken(sec);
   rehTick();
 }
 function updatePlayBtn() { const b = $('#rh-play'); if (b) b.textContent = S.reh.playing ? 'Paus' : 'Starta'; }
@@ -811,7 +864,8 @@ function rehTick() {
   if (!R || S.view.name !== 'rehearse') return;
   const t = trk(S.view.rid, S.view.tid);
   const now = rehTime(), dur = rehDuration(t);
-  if (!R.audio && R.playing && now >= dur) { R.base = dur; R.playing = false; updatePlayBtn(); releaseWake(); }
+  if (!R.audio && R.playing && now >= dur) { R.base = dur; R.playing = false; updatePlayBtn(); releaseWake(); rehFinish(); }
+  rehSpeak(now);
   let i = -1;
   t.blocks.forEach((b, k) => { if (b.time <= now) i = k; });
   if (i !== R.lastI) { R.lastI = i; R.shown = false; R.shownNext = false; }
@@ -829,6 +883,7 @@ function rehTick() {
       (b.cue && big ? `<div class="reh-cue">♪ ${esc(b.cue)}</div>` : '') +
       (say.length ? `<div style="text-align:left;margin-top:8px">${techListHtml(say)}</div>` : '');
   };
+  R.hide = R.stage === 2;
   const hidden = R.hide && !R.shown;
   $('#rh-now-label').textContent = cur ? `Nu · block ${i + 1} av ${t.blocks.length}` : 'Före första blocket';
   $('#rh-now').innerHTML = !cur ? '<div class="reh-meta">Vänta in första blocket</div>'
@@ -1142,6 +1197,8 @@ $('#pdfFile').addEventListener('change', async e => {
       return toast(`Övningsbanken har fyllts på med ${n} övningar.`);
     }
   } else {
+    // En PDF är på engelska och översätts alltid innan den sparas.
+    if (!getApiKey()) return toast('Lägg in din Claude-nyckel under Översättning först, så blir noterna svenska.');
     toast('Läser PDF:en …');
     try { res = parsePdf(await readPdfPages(f)); }
     catch (err) {
@@ -1149,6 +1206,9 @@ $('#pdfFile').addEventListener('change', async e => {
         ? 'PDF-läsaren kunde inte laddas. Kontrollera att telefonen har nät och försök igen.'
         : 'PDF:en kunde inte läsas.');
     }
+    if (!res.tracks.length) return toast('Hittade inga spår i filen. Den kanske har en annan uppställning än vanligt.');
+    try { await translateRelease(res, (i, n) => toast(`Översätter till svenska … ${i} av ${n}`)); }
+    catch (err) { return toast(translateError(err)); }
   }
   if (!res.tracks.length) return toast('Hittade inga spår i filen. Den kanske har en annan uppställning än vanligt.');
   S.pdfImport = res;
@@ -1162,6 +1222,121 @@ $('#pdfFile').addEventListener('change', async e => {
       <span><b style="font-weight:500">${esc(t.num + ' ' + t.name)}</b><br><span class="small muted">${[t.song, t.blocks.length + ' block'].filter(Boolean).map(esc).join(' · ')}</span></span></label>`).join('')}
     <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="savePdf">Spara</button></div>`);
 });
+
+/* ============================================================
+   ÖVERSÄTTNING MED CLAUDE
+   En inläst PDF översätts till svenska innan den sparas. Nyckeln
+   ligger bara i den här telefonen (egen nyckel i localStorage) och
+   följer inte med i backupen. Texterna skickas bara till Claude.
+   Övningsnamn behålls på engelska, resten följer ordlistan nedan.
+   ============================================================ */
+const API_KEY_STORE = 'passa-dig-nyckel';
+function getApiKey() { try { return localStorage.getItem(API_KEY_STORE) || ''; } catch (e) { return ''; } }
+function setApiKey(k) { try { k ? localStorage.setItem(API_KEY_STORE, k) : localStorage.removeItem(API_KEY_STORE); } catch (e) {} }
+
+const SDK_URL = 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.135.0/+esm';
+let sdkPromise = null;
+function loadSdk() {
+  if (!sdkPromise) sdkPromise = import(SDK_URL).then(m => m.default).catch(e => { sdkPromise = null; throw new Error('sdk'); });
+  return sdkPromise;
+}
+
+const TRANSLATE_SYSTEM = `You translate Les Mills Pilates choreography notes from English to Swedish for a Swedish Pilates instructor who teaches her classes in Swedish.
+
+You get a JSON array of items {"k": kind, "t": text}. Reply with only a JSON array of Swedish strings, same length and same order, nothing else.
+
+Write natural spoken Swedish, the way an instructor says it in class. Translate faithfully, do not add or drop content. Never use the long dash character, use a comma or a short hyphen.
+
+Keep **double asterisks** around the Swedish words that correspond to the bold English words. These mark cues the instructor must say.
+
+Exercise and position names stay in English, for example Hip Bridge, Roll Up, Teaser, 100s, Tabletop, Childs Pose, Baby Cobra, Up Dog, Horse Stance, Tree Pose, Criss Cross, Single-Leg Stretch, Plank, Side Plank, Swimmers, Lunge.
+
+Fixed terms:
+Neutral Spine = neutral ryggrad
+imprint / spine imprints = imprint, ländryggen pressas mot golvet (in short cues just "imprint")
+brace / core braced = spänn bålen / bålen spänd
+engage the core = aktivera bålen
+draw belly in = dra naveln mot ryggraden
+lift belly (to spine) = lyft naveln mot ryggraden
+slide ribs to hips = dra revbenen mot höfterna
+rib-to-hip connection = kontakten mellan revben och höfter
+squeeze glutes = spänn rumpan
+chin tucked in (gently) = hakan (lätt) indragen
+eye gaze = blicken
+sit bones = sittbenen
+pelvis still and stable = bäckenet stilla och stabilt
+hips square to the front = höfterna rakt framåt
+inhale / exhale = andas in / andas ut
+with control = kontrollerat
+front leg / back leg = främre benet / bakre benet
+F / B / O/H = framåt / bakåt / över huvudet
+L / R = vänster / höger
+cts = counts
+"OPTIONS:" or "Option(s):" at the start = "Alternativ: "
+"NOTE:" at the start is removed, keep only the instruction.
+
+Items with "k": "namn" are block names. Keep the exercise name in English and translate only the rest: "Transition:" = "Övergång:", "Set up" = "Förbered", "REPEAT BLOCK" = "UPPREPA BLOCK", "front and back" = ", fram och bak", "front leg" = ", främre benet", a trailing L or R = ", vänster" or ", höger". Example: "Clam L With Thoracic Rotation" = "Clam With Thoracic Rotation, vänster".`;
+
+function collectTexts(res) {
+  const m = new Map();
+  const add = (k, t) => { if (t && t.trim() && !m.has(k + '\n' + t)) m.set(k + '\n' + t, { k, t }); };
+  res.tracks.forEach(T => {
+    add('text', T.intro);
+    T.blocks.forEach(b => {
+      add('namn', b.move);
+      b.steps.forEach(s => add('text', s.text));
+      b.tech.forEach(l => add('text', l));
+      b.note.split('\n').forEach(l => add('text', l));
+    });
+  });
+  return [...m.values()];
+}
+async function translateBatch(client, items) {
+  const msg = await client.beta.messages.create({
+    model: 'claude-opus-5-5',
+    max_tokens: 16000,
+    output_config: { effort: 'low' },
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    system: TRANSLATE_SYSTEM,
+    messages: [{ role: 'user', content: JSON.stringify(items) }]
+  });
+  if (msg.stop_reason === 'refusal') throw new Error('refusal');
+  const text = msg.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  const arr = JSON.parse(text.slice(text.indexOf('['), text.lastIndexOf(']') + 1));
+  if (!Array.isArray(arr) || arr.length !== items.length) throw new Error('format');
+  return arr.map(String);
+}
+async function translateRelease(res, onProgress) {
+  const Anthropic = await loadSdk();
+  const client = new Anthropic({ apiKey: getApiKey(), dangerouslyAllowBrowser: true });
+  const items = collectTexts(res), out = new Map(), size = 60, n = Math.ceil(items.length / size);
+  for (let i = 0; i < n; i++) {
+    onProgress(i + 1, n);
+    const part = items.slice(i * size, (i + 1) * size);
+    let sv;
+    try { sv = await translateBatch(client, part); }
+    catch (e) { if (e.message === 'format' || e instanceof SyntaxError) sv = await translateBatch(client, part); else throw e; }
+    part.forEach((it, j) => out.set(it.k + '\n' + it.t, sv[j]));
+  }
+  const tr = (k, t) => t ? (out.get(k + '\n' + t) ?? t) : t;
+  res.tracks.forEach(T => {
+    T.intro = tr('text', T.intro);
+    T.blocks.forEach(b => {
+      b.move = tr('namn', b.move);
+      b.steps = b.steps.map(s => ({ text: tr('text', s.text), cts: s.cts }));
+      b.tech = b.tech.map(l => tr('text', l));
+      b.note = b.note ? b.note.split('\n').map(l => tr('text', l)).join('\n') : '';
+    });
+  });
+}
+function translateError(err) {
+  const s = err && err.status;
+  if (s === 401 || s === 403) return 'Nyckeln fungerar inte. Kontrollera att den är rätt inklistrad.';
+  if (s === 429) return 'För många förfrågningar just nu. Vänta en minut och försök igen.';
+  if (err && err.message === 'sdk' || !s) return 'Översättningen kunde inte nås. Kontrollera att telefonen har nät och försök igen.';
+  return 'Översättningen misslyckades. Försök igen.';
+}
 
 /* ============================================================
    FORMULÄR (bottenark)
@@ -1368,6 +1543,22 @@ Rader utan tid blir anteckning på blocket ovanför.</div>
     t.done = !t.done; save(); render();
     toast(t.done ? 'Spåret är klart och tas bort från dagens förhör.' : 'Spåret är med i förhöret igen.');
   },
+  keyForm() {
+    openSheet(`<h2>Claude-nyckel</h2>
+      <p class="help">Klistra in nyckeln från Anthropics webbplats. Den sparas bara i den här telefonen.</p>
+      ${field('f-key', 'Nyckel', '', 'type="password" autocomplete="off" autocapitalize="off" spellcheck="false"')}
+      <div class="btn-row"><button class="btn" data-act="closeSheet">Avbryt</button><button class="btn primary" data-act="saveKey">Spara</button></div>`);
+  },
+  saveKey() {
+    const k = val('f-key');
+    if (!k) return toast('Klistra in nyckeln först.');
+    setApiKey(k); closeSheet(); render();
+    toast('Nyckeln är sparad.');
+  },
+  removeKey() {
+    if (!confirm('Ta bort nyckeln från telefonen?')) return;
+    setApiKey(''); render();
+  },
   pickPdf: () => $('#pdfFile').click(),
   savePdf() {
     const res = S.pdfImport;
@@ -1397,7 +1588,11 @@ Rader utan tid blir anteckning på blocket ovanför.</div>
     if (!units(t).length) return;
     if (d.m === 'learn') { S.learn = { k: 0 }; go({ name: 'learn', rid, tid }); }
     if (d.m === 'practice') { S.prac = { k: 0, shown: false, missed: [] }; go({ name: 'practice', rid, tid }); }
-    if (d.m === 'rehearse') { S.reh = { base: 0, startedAt: 0, playing: false, hide: true, shown: false, shownNext: false, lastI: null }; go({ name: 'rehearse', rid, tid }); }
+    if (d.m === 'rehearse') {
+      const stage = S.reh0 ?? (t.srs.n ? 1 : 0);
+      S.reh = { base: 0, startedAt: 0, playing: false, stage, hide: stage === 2, shown: false, shownNext: false, lastI: null, said: {}, lost: new Set(), graded: false };
+      go({ name: 'rehearse', rid, tid });
+    }
   },
   // Från startsidan: aldrig övat börjar med Lär in, annars Öva i ordning.
   startTrack(d) {
@@ -1428,10 +1623,13 @@ Rader utan tid blir anteckning på blocket ovanför.</div>
     const R = S.reh;
     if (R.playing) {
       if (R.audio) R.audio.pause(); else R.base = rehTime();
-      R.playing = false; releaseWake();
+      R.playing = false; releaseWake(); hush();
     } else {
       const t = trk(S.view.rid, S.view.tid);
-      if (rehTime() >= rehDuration(t) - 0.2) rehSet(0);
+      if (rehTime() >= rehDuration(t) - 0.2) { R.lost = new Set(); R.graded = false; rehSet(0); }
+      // iPhone släpper bara fram talsyntes efter ett tryck, så den väcks här.
+      if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(' '));
+      rehResetSpoken(rehTime());
       if (R.audio) { try { await R.audio.play(); } catch (e) { return toast('Låten kunde inte spelas.'); } }
       else R.startedAt = performance.now();
       R.playing = true; wake();
@@ -1439,7 +1637,23 @@ Rader utan tid blir anteckning på blocket ovanför.</div>
     updatePlayBtn(); rehTick();
   },
   rehSeek: d => rehSet(rehTime() + +d.s),
-  rehRestart: () => rehSet(0),
+  rehRestart() { S.reh.lost = new Set(); S.reh.graded = false; rehSet(0); },
+  rehStage(d) {
+    const R = S.reh;
+    R.stage = +d.s; S.reh0 = R.stage; R.shown = false; R.shownNext = false;
+    R.lost = new Set(); R.graded = false; hush(); rehResetSpoken(rehTime());
+    // Ingen render() här, den skulle starta om låten och timern.
+    document.querySelectorAll('[data-act="rehStage"]').forEach(b => b.classList.toggle('on', +b.dataset.s === R.stage));
+    $('#rh-lost').style.display = R.stage === 2 ? '' : 'none';
+    rehTick();
+  },
+  rehLost() {
+    const R = S.reh, t = trk(S.view.rid, S.view.tid), U = units(t), now = rehTime();
+    let k = 0;
+    U.forEach((u, j) => { if (u.b.time <= now + 3) k = j; });
+    R.lost.add(k);
+    toast('Noterat. Det här stället tränas mer.');
+  },
   rehReveal() { if (S.reh.hide) { S.reh.shown = !S.reh.shown; rehTick(); } },
   rehRevealNext() { if (S.reh.hide) { S.reh.shownNext = !S.reh.shownNext; rehTick(); } },
 
